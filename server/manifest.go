@@ -7,5 +7,5 @@ var manifest = struct {
 	Version string
 }{
 	ID:      "mattermost-profanity-filter",
-	Version: "1.0.0",
+	Version: "2.0.0",
 }

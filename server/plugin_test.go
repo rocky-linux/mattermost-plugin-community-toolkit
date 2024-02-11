@@ -101,3 +101,24 @@ func TestMessageWillBePosted(t *testing.T) {
 		assert.Equal(t, out, rpost)
 	})
 }
+
+func TestUserHasBeenCreated(t *testing.T) {
+	p := Plugin{
+		configuration: &configuration{
+			CensorCharacter: "*",
+			RejectPosts:     false,
+			BadWordsList:    "def ghi,abc",
+			ExcludeBots:     true,
+		},
+	}
+	p.badWordsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadWordsList))
+
+	t.Run("word matches", func(t *testing.T) {
+		in := &model.User{
+			Username: "ihategmk",
+		}
+
+		p.UserHasBeenCreated(&plugin.Context{}, in)
+
+	})
+}
