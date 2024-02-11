@@ -26,8 +26,13 @@ type configuration struct {
 	RejectPosts     bool
 	CensorCharacter string
 	BadWordsList    string
+	BadDomainsList  string
+	BadUsernamesList  string
 	WarningMessage  string `json:"WarningMessage"`
 }
+
+// The default regex template
+const defaultRegexTemplate = `(?mi)\b(%s)\b`
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if
 // your configuration has reference types.
@@ -88,29 +93,36 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.setConfiguration(configuration)
 
-	// Addind space around the words
-	regexString := wordListToRegex(configuration.BadWordsList)
-	regex, err := regexp.Compile(regexString)
-	if err != nil {
-		return err
-	}
-
-	p.badWordsRegex = regex
+	p.badWordsRegex     = splitWordListToRegex(configuration.BadWordsList)
+	p.badDomainsRegex   = splitWordListToRegex(configuration.BadDomainsList)
+	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
 	return nil
 }
 
-func wordListToRegex(wordList string) (regexStr string) {
+
+func splitWordListToRegex(wordList string, regexTemplateOptional ...string) *regexp.Regexp {
+	// Choose the regex template
+	regexTemplate := defaultRegexTemplate
+	if len(regexTemplateOptional) > 0 {
+		regexTemplate = regexTemplateOptional[0]
+	}
+
+	// Compile the regex
+	regexString := wordListToRegex(wordList, regexTemplate)
+	regex, err := regexp.Compile(regexString)
+	if err != nil {
+		panic(fmt.Errorf("unable to split wordlist to regex: %v", err))
+	}
+	return regex
+}
+
+func wordListToRegex(wordList string, regexTemplate string) string {
 	split := strings.Split(wordList, ",")
 
-	// Sorting by length because if "bad" and "bad word" are in the list,
-	// we want "bad word" to be the first match
+	// Sorting by length so that longer words come first
 	sort.Slice(split, func(i, j int) bool { return len(split[i]) > len(split[j]) })
 
-	regexStr = fmt.Sprintf(
-		`(?mi)\b(%s)\b`,
-		strings.Join(split, "|"),
-	)
-
-	return regexStr
+	return fmt.Sprintf(regexTemplate, strings.Join(split, "|"))
 }
+

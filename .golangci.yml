@@ -6,7 +6,7 @@ linters-settings:
   gofmt:
     simplify: true
   goimports:
-    local-prefixes: github.com/mattermost/mattermost-plugin-profanity-filter
+    local-prefixes: github.com/rocky-linux/mattermost-plugin-community-toolkit
   govet:
     check-shadowing: true
     enable-all: true

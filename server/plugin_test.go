@@ -3,11 +3,14 @@ package main
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin"
+	"github.com/mattermost/mattermost/server/public/plugin"
+	"github.com/mattermost/mattermost/server/public/model"
+	//"github.com/mattermost/mattermost/server/public/shared/request"
 )
 
 func TestMessageWillBePosted(t *testing.T) {
@@ -103,6 +106,7 @@ func TestMessageWillBePosted(t *testing.T) {
 }
 
 func TestUserHasBeenCreated(t *testing.T) {
+	th = Setup(t)
 	p := Plugin{
 		configuration: &configuration{
 			CensorCharacter: "*",
@@ -113,12 +117,21 @@ func TestUserHasBeenCreated(t *testing.T) {
 	}
 	p.badWordsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadWordsList))
 
-	t.Run("word matches", func(t *testing.T) {
-		in := &model.User{
-			Username: "ihategmk",
+	t.Run("user matching word is banned", func(t *testing.T) {
+		user := &model.User{
+			Email:       model.NewId() + "fail+test@example.com",
+			Nickname:    "Neil Sucks",
+			Username:    "ihateneil" + model.NewId(),
+			Password:    "passwd12345",
+			AuthService: "",
 		}
+		_, err := th.App.CreateUser(th.Context, user)
+		require.Nil(t, err)
 
-		p.UserHasBeenCreated(&plugin.Context{}, in)
+		time.Sleep(2 * time.Second)
 
+		user, err = th.App.GetUser(user.Id)
+		require.Nil(t, err)
+		require.Equal(t, "sanitized", user.Nickname)
 	})
 }

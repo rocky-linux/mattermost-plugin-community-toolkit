@@ -1,20 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
-	"unicode"
 
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
-
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin"
 )
 
 type Plugin struct {
@@ -27,7 +20,9 @@ type Plugin struct {
 	// setConfiguration for usage.
 	configuration *configuration
 
-	badWordsRegex *regexp.Regexp
+	badWordsRegex     *regexp.Regexp
+	badDomainsRegex   *regexp.Regexp
+	badUsernamesRegex *regexp.Regexp
 }
 
 func (p *Plugin) FilterPost(post *model.Post) (*model.Post, string) {
@@ -75,59 +70,11 @@ func (p *Plugin) MessageWillBeUpdated(_ *plugin.Context, newPost *model.Post, _ 
 	return p.FilterPost(newPost)
 }
 
-func readDomainsFromFile() []string {
-	// Use email list from https://raw.githubusercontent.com/unkn0w/disposable-email-domain-list/main/domains.txt
-	file, err := os.Open("domains.txt")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var badDomains []string
-
-	for scanner.Scan() {
-		domain := strings.TrimSpace(scanner.Text())
-		if domain != "" {
-			badDomains = append(badDomains, domain)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-
-	return badDomains
-}
-
-func checkBadEmail(user *model.User) error {
-	for _, domain := range readDomainsFromFile() {
-		if strings.HasSuffix(user.Email, domain) {
-			return fmt.Errorf("domain in list of known throwaway domains: (%v, %v)", user.Email, domain)
-		}
-	}
-	return nil
-}
-
-func checkBadUsername(user *model.User) error {
-	moderationRegexList := []*regexp.Regexp{
-		regexp.MustCompile(`gmk`),
-	}
-
-	for _, regex := range moderationRegexList {
-		if regex.MatchString(user.Username) {
-			return fmt.Errorf("username matches moderation list: %v", user.Username)
-		}
-	}
-	return nil
-}
-
-func RequiresModeration(user *model.User, validators ...func(*model.User) error) []error {
+func (p *Plugin) RequiresModeration(ctx *plugin.Context, user *model.User, validators ...func(*plugin.Context, *model.User) error) []error {
 	var errors []error
 
-
 	for _, validator := range validators {
-		if err := validator(user); err != nil {
+		if err := validator(ctx, user); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -138,27 +85,56 @@ func RequiresModeration(user *model.User, validators ...func(*model.User) error)
 	return nil // Does not require moderation
 }
 
-func (p *Plugin) UserHasBeenCreated(_ *plugin.Context, user *model.User) {
-	validatorFunctions := []func(*model.User) error{
-		checkBadUsername,
-		checkBadEmail,
+func (p *Plugin) RemoveUserFromTeams(user *model.User) error {
+	teams, err := p.API.GetTeamsForUser(user.Id)
+	if err != nil {
+		return fmt.Errorf("unable to get any teams for user")
 	}
 
-	validationErrors := RequiresModeration(user, validatorFunctions...)
-	if len(validationErrors) != 0 {
-		// ban them
-		for err := range validationErrors {
-			fmt.Println(err)
-		}
+	admin, err := p.API.GetUserByUsername("neil") // TODO should not just use me
+	if err != nil {
+		return fmt.Errorf("failed to get admin by username to perform removal")
 	}
+
+	for _, team := range teams {
+		p.API.DeleteTeamMember(team.Id, user.Id, admin.Id)
+	}
+	return nil
 }
 
-func removeAccents(s string) string {
-	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-	output, _, e := transform.String(t, s)
-	if e != nil {
-		return s
+func (p *Plugin) UserHasBeenCreated(ctx *plugin.Context, user *model.User) {
+	validatorFunctions := []func(*plugin.Context, *model.User) error{
+		p.checkBadUsername,
+		p.checkBadEmail,
 	}
 
-	return output
+	validationErrors := p.RequiresModeration(ctx, user, validatorFunctions...)
+	if len(validationErrors) == 0 {
+		return // User is OK
+	}
+	
+	// Otherwise, let's take care of that user
+
+	// Make a copy of the user for logging later
+	original := user
+
+	// Clean the user
+	user.Nickname = fmt.Sprintf("sanitized-%s", user.Id)
+	user.Username = fmt.Sprintf("sanitized-%s", user.Id)
+	// user.FirstName = "Sanitized"
+	// user.LastName = "Sanitized"
+	p.API.UpdateUser(user)
+
+	if err := p.RemoveUserFromTeams(user); err != nil {
+		fmt.Printf("Unable to remove user from teams: %v\n", err)
+	}
+
+	// delete them - Perform a soft delete so the account _can_ be restored...
+	p.API.DeleteUser(user.Id)
+
+	// TODO: do something with the validation errors i.e. send them somewhere
+	for _, err := range validationErrors {
+		fmt.Println(err)
+	}
+	fmt.Printf("user info: %v\n", original)
 }
