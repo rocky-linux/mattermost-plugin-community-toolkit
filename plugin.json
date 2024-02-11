@@ -45,6 +45,20 @@
         "default": "\\*"
       },
       {
+        "key": "BlockNewUserPM",
+        "display_name": "Block New User PMs:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from sending PMs for some time (see BlockNewUserPMTime)",
+        "default": "true"
+      },
+      {
+        "key": "BlockNewUserPMTime",
+        "display_name": "Block New User PMs Time:",
+        "type": "text",
+        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m))",
+        "default": "24h"
+      },
+      {
         "key": "BadUsernamesList",
         "display_name": "Bad Usernames:",
         "type": "longtext",

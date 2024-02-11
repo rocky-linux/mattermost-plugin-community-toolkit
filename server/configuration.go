@@ -22,13 +22,15 @@ import (
 // If you add non-reference types to your configuration struct, be sure to rewrite Clone as a deep
 // copy appropriate for your types.
 type configuration struct {
-	ExcludeBots     bool
-	RejectPosts     bool
-	CensorCharacter string
-	BadWordsList    string
-	BadDomainsList  string
-	BadUsernamesList  string
-	WarningMessage  string `json:"WarningMessage"`
+	BadDomainsList				string
+	BadUsernamesList			string
+	BadWordsList					string
+	BlockNewUserPM				bool
+	BlockNewUserPMTime		string
+	CensorCharacter				string
+	ExcludeBots						bool
+	RejectPosts						bool
+	WarningMessage				string `json:"WarningMessage"`
 }
 
 // The default regex template

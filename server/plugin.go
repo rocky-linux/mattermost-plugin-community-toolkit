@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
@@ -31,6 +32,38 @@ func (p *Plugin) FilterPost(post *model.Post) (*model.Post, string) {
 
 	if configuration.ExcludeBots && fromBot {
 		return post, ""
+	}
+
+	if configuration.BlockNewUserPM && p.isDirectMessage(post.ChannelId) {
+		user, err := p.API.GetUser(post.UserId)
+		if err != nil {
+			p.API.SendEphemeralPost(post.UserId, &model.Post{
+				ChannelId: post.ChannelId,
+				Message:   "Something went wrong when sending your post. Contact an administrator",
+				RootId:    post.RootId,
+			})
+		}
+
+		createdAt := time.Unix(user.CreateAt, 0)
+		blockDuration := configuration.BlockNewUserPMTime
+		duration, error := time.ParseDuration(blockDuration)
+
+		if error != nil {
+			p.API.SendEphemeralPost(post.UserId, &model.Post{
+				ChannelId: post.ChannelId,
+				Message:   "Something went wrong when sending your post. Contact an administrator",
+				RootId:    post.RootId,
+			})
+		}
+
+		if time.Since(createdAt) < duration {
+			p.API.SendEphemeralPost(post.UserId, &model.Post{
+				ChannelId: post.ChannelId,
+				Message:   "Configuration settings limit new users from sending private messages.",
+				RootId:    post.RootId,
+			})
+			return nil, fmt.Sprintf("New user not allowed to send DM for %s.", duration)
+		}
 	}
 
 	postMessageWithoutAccents := removeAccents(post.Message)
@@ -137,4 +170,14 @@ func (p *Plugin) UserHasBeenCreated(ctx *plugin.Context, user *model.User) {
 		fmt.Println(err)
 	}
 	fmt.Printf("user info: %v\n", original)
+}
+
+func (p *Plugin) isDirectMessage(channelId string) bool { 
+	channel, err := p.API.GetChannel(channelId)
+	if err != nil {
+		panic("couldn't find channel")
+	}
+
+	fmt.Println(channel.Type)
+	return channel.Type == model.ChannelTypeDirect
 }

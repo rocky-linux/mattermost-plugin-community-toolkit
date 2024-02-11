@@ -70,6 +70,24 @@ const manifestStr = `
         "hosting": ""
       },
       {
+        "key": "BlockNewUserPM",
+        "display_name": "Block New User PMs:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from sending PMs for some time (see BlockNewUserPMTime)",
+        "placeholder": "",
+        "default": "true",
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserPMTime",
+        "display_name": "Block New User PMs Time:",
+        "type": "text",
+        "help_text": "How long to block PMs for (hours)",
+        "placeholder": "",
+        "default": "24",
+        "hosting": ""
+      },
+      {
         "key": "BadUsernamesList",
         "display_name": "Bad Usernames:",
         "type": "longtext",
