@@ -29,6 +29,9 @@ const manifestStr = `
     },
     "executable": ""
   },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
+  },
   "settings_schema": {
     "header": "",
     "footer": "",
@@ -65,8 +68,8 @@ const manifestStr = `
         "display_name": "Censor Character:",
         "type": "text",
         "help_text": "The character(s) to use to censor profanity. The letters of the censored word will be replaced with this character. Note that markdown will be interpreted. You can escape markdown character with a backslash. For using ` + "`" + `*` + "`" + ` you type ` + "`" + `\\*` + "`" + `.",
-        "placeholder": "E.g.,. \\*",
-        "default": "\\*",
+        "placeholder": "E.g.,. *",
+        "default": "*",
         "hosting": ""
       },
       {
@@ -82,9 +85,9 @@ const manifestStr = `
         "key": "BlockNewUserPMTime",
         "display_name": "Block New User PMs Time:",
         "type": "text",
-        "help_text": "How long to block PMs for (hours)",
+        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m))",
         "placeholder": "",
-        "default": "24",
+        "default": "24h",
         "hosting": ""
       },
       {

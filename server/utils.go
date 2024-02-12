@@ -19,8 +19,8 @@ func removeAccents(s string) string {
 	return output
 }
 
-func (p *Plugin) isDirectMessage(channelId string) bool { 
-	channel, err := p.API.GetChannel(channelId)
+func (p *Plugin) isDirectMessage(channelID string) bool {
+	channel, err := p.API.GetChannel(channelID)
 	if err != nil {
 		panic("couldn't find channel")
 	}
@@ -28,9 +28,9 @@ func (p *Plugin) isDirectMessage(channelId string) bool {
 }
 
 func (p *Plugin) sendUserEphemeralMessageForPost(post *model.Post, message string) {
-			p.API.SendEphemeralPost(post.UserId, &model.Post{
-				ChannelId: post.ChannelId,
-				Message:   message,
-				RootId:    post.RootId,
-			})
+	p.API.SendEphemeralPost(post.UserId, &model.Post{
+		ChannelId: post.ChannelId,
+		Message:   message,
+		RootId:    post.RootId,
+	})
 }

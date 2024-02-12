@@ -14,7 +14,7 @@ func TestWordListToRegex(t *testing.T) {
 	}
 
 	t.Run("Build Regex", func(t *testing.T) {
-		regexStr := wordListToRegex(p.getConfiguration().BadWordsList)
+		regexStr := wordListToRegex(p.getConfiguration().BadWordsList, defaultRegexTemplate)
 
 		assert.Equal(t, regexStr, `(?mi)\b(def ghi|abc)\b`)
 	})
@@ -26,8 +26,14 @@ func TestWordListToRegex(t *testing.T) {
 	}
 
 	t.Run("Build In double Regex", func(t *testing.T) {
-		regexStr := wordListToRegex(p2.getConfiguration().BadWordsList)
+		regexStr := wordListToRegex(p2.getConfiguration().BadWordsList, defaultRegexTemplate)
 
 		assert.Equal(t, regexStr, `(?mi)\b(abc def|abc)\b`)
+	})
+
+	t.Run("Build In double Regex", func(t *testing.T) {
+		regexStr := wordListToRegex(p2.getConfiguration().BadWordsList, `(?mi)^(%s)$`)
+
+		assert.Equal(t, regexStr, `(?mi)^(abc def|abc)$`)
 	})
 }

@@ -14,6 +14,9 @@
       "windows-amd64": "server/dist/plugin-windows-amd64.exe"
     }
   },
+  "webapp": {
+        "bundle_path": "webapp/dist/main.js"
+    },
   "settings_schema": {
     "settings": [
       {
@@ -41,8 +44,8 @@
         "display_name": "Censor Character:",
         "type": "text",
         "help_text": "The character(s) to use to censor profanity. The letters of the censored word will be replaced with this character. Note that markdown will be interpreted. You can escape markdown character with a backslash. For using `*` you type `\\*`.",
-        "placeholder": "E.g.,. \\*",
-        "default": "\\*"
+        "placeholder": "E.g.,. *",
+        "default": "*"
       },
       {
         "key": "BlockNewUserPM",

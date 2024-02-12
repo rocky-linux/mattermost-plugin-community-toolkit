@@ -166,7 +166,6 @@ func applyManifest(manifest *model.Manifest) error {
 		// Replace in-line ` with `` on the fly
 		manifestStr := escapeBackticks(string(manifestBytes))
 
-
 		// write generated code to file by using Go file template.
 		if err := os.WriteFile(
 			"server/manifest.go",
@@ -189,6 +188,12 @@ func applyManifest(manifest *model.Manifest) error {
 
 		// Escape newlines
 		manifestStr = strings.ReplaceAll(manifestStr, `\n`, `\\n`)
+
+		// replace '\*' with '*'
+		manifestStr = strings.ReplaceAll(manifestStr, "`\\\\*", "`*")
+
+		// replace '\+' with '+'
+		manifestStr = strings.ReplaceAll(manifestStr, `\+`, `+`)
 
 		// write generated code to file by using JS file template.
 		if err := os.WriteFile(

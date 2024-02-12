@@ -22,15 +22,15 @@ import (
 // If you add non-reference types to your configuration struct, be sure to rewrite Clone as a deep
 // copy appropriate for your types.
 type configuration struct {
-	BadDomainsList				string
-	BadUsernamesList			string
-	BadWordsList					string
-	BlockNewUserPM				bool
-	BlockNewUserPMTime		string
-	CensorCharacter				string
-	ExcludeBots						bool
-	RejectPosts						bool
-	WarningMessage				string `json:"WarningMessage"`
+	BadDomainsList     string
+	BadUsernamesList   string
+	BadWordsList       string
+	BlockNewUserPM     bool
+	BlockNewUserPMTime string
+	CensorCharacter    string
+	ExcludeBots        bool
+	RejectPosts        bool
+	WarningMessage     string `json:"WarningMessage"`
 }
 
 // The default regex template
@@ -95,13 +95,12 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.setConfiguration(configuration)
 
-	p.badWordsRegex     = splitWordListToRegex(configuration.BadWordsList)
-	p.badDomainsRegex   = splitWordListToRegex(configuration.BadDomainsList)
+	p.badWordsRegex = splitWordListToRegex(configuration.BadWordsList)
+	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
 	return nil
 }
-
 
 func splitWordListToRegex(wordList string, regexTemplateOptional ...string) *regexp.Regexp {
 	// Choose the regex template
@@ -127,4 +126,3 @@ func wordListToRegex(wordList string, regexTemplate string) string {
 
 	return fmt.Sprintf(regexTemplate, strings.Join(split, "|"))
 }
-
