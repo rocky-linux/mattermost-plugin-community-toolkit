@@ -61,6 +61,7 @@ func (p *Plugin) FilterDirectMessage(configuration *configuration, post *model.P
 	user, err := p.API.GetUser(post.UserId)
 	if err != nil {
 		p.sendUserEphemeralMessageForPost(post, "Something went wrong when sending your message. Contact an administrator.")
+		return nil, "Failed to get user"
 	}
 
 	createdAt := time.Unix(user.CreateAt, 0)
@@ -69,6 +70,7 @@ func (p *Plugin) FilterDirectMessage(configuration *configuration, post *model.P
 
 	if parseErr != nil {
 		p.sendUserEphemeralMessageForPost(post, "Something went wrong when sending your message. Contact an administrator.")
+		return nil, "failed to parse duration"
 	}
 
 	if time.Since(createdAt) < duration {
