@@ -25,11 +25,11 @@ type Plugin struct {
 	badDomainsRegex   *regexp.Regexp
 	badUsernamesRegex *regexp.Regexp
 
-	badDomainsList    *[]string
+	badDomainsList *[]string
 
 	cache *LRUCache
-
 }
+
 // Plugin Callback: MessageWillBePosted
 func (p *Plugin) MessageWillBePosted(_ *plugin.Context, post *model.Post) (*model.Post, string) {
 	return p.FilterPost(post)
@@ -55,21 +55,18 @@ func (p *Plugin) FilterPost(post *model.Post) (*model.Post, string) {
 	return p.FilterPostBadWords(configuration, post)
 }
 
-func (p *Plugin) GetUserByID(userID string) (User, error) {
+func (p *Plugin) GetUserByID(userID string) (*model.User, error) {
 	if user, found := p.cache.Get(userID); found {
 		return user, nil
-	} 
+	}
 	user, err := p.API.GetUser(userID)
 	if err != nil {
-		return User{}, fmt.Errorf("failed to find user with id %v", userID)
+		return &model.User{}, fmt.Errorf("failed to find user with id %v", userID)
 	}
-	cacheUser := User{
-		ID: user.Id,
-		CreateAt: user.CreateAt,
-	}
-	p.cache.Put(user.Id, cacheUser)
+	cacheUser := *user
+	p.cache.Put(user.Id, &cacheUser)
 
-	return cacheUser, nil
+	return &cacheUser, nil
 }
 
 func (p *Plugin) FilterDirectMessage(configuration *configuration, post *model.Post) (*model.Post, string) {
@@ -79,7 +76,7 @@ func (p *Plugin) FilterDirectMessage(configuration *configuration, post *model.P
 		return nil, "Failed to get user"
 	}
 
-	userCreateSeconds := user.CreateAt/1000
+	userCreateSeconds := user.CreateAt / 1000
 	createdAt := time.Unix(userCreateSeconds, 0)
 	blockDuration := configuration.BlockNewUserPMTime
 	duration, parseErr := time.ParseDuration(blockDuration)

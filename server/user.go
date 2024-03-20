@@ -1,9 +1,11 @@
 package main
 
-type User struct {
-	ID       string
-	CreateAt int64 // Unix timestamp
-}
+import (
+	"container/list"
+	"sync"
+
+	"github.com/mattermost/mattermost/server/public/model"
+)
 
 type LRUCache struct {
 	capacity int
@@ -14,7 +16,7 @@ type LRUCache struct {
 
 type entry struct {
 	key  string
-	user User
+	user *model.User
 }
 
 func NewLRUCache(capacity int) *LRUCache {
@@ -25,7 +27,7 @@ func NewLRUCache(capacity int) *LRUCache {
 	}
 }
 
-func (c *LRUCache) Get(key string) (User, bool) {
+func (c *LRUCache) Get(key string) (*model.User, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -33,10 +35,10 @@ func (c *LRUCache) Get(key string) (User, bool) {
 		c.lruList.MoveToFront(elem) // Mark as most recently used
 		return elem.Value.(entry).user, true
 	}
-	return User{}, false // Return zero value if not found
+	return &model.User{}, false // Return zero value if not found
 }
 
-func (c *LRUCache) Put(key string, user User) {
+func (c *LRUCache) Put(key string, user *model.User) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -60,4 +62,3 @@ func (c *LRUCache) Put(key string, user User) {
 	elem := c.lruList.PushFront(entry{key, user})
 	c.cache[key] = elem
 }
-
