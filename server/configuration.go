@@ -109,7 +109,6 @@ func (p *Plugin) OnConfigurationChange() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to pase builtin domains list")
 	}
-	fmt.Println(*domainList)
 	p.badDomainsList = domainList
 
 	return nil

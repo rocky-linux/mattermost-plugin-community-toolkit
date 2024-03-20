@@ -140,7 +140,7 @@ func TestUserHasBeenCreated(t *testing.T) {
 			RejectPosts:      false,
 			BadWordsList:     "def ghi,abc",
 			BadDomainsList:   "baddomain.com,bad.org",
-			BadUsernamesList: "hate",
+			BadUsernamesList: "hate,sucks",
 			ExcludeBots:      true,
 			BlockNewUserPM: true,
 			BlockNewUserPMTime: "4h",
@@ -150,7 +150,7 @@ func TestUserHasBeenCreated(t *testing.T) {
 	p.badDomainsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadDomainsList, defaultRegexTemplate))
 	p.badUsernamesRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadUsernamesList, `(?mi)(%s)`))
 
-	t.Run("user matching word is banned", func(_ *testing.T) {
+	t.Run("username matching word is banned", func(_ *testing.T) {
 		id := model.NewId()
 		user := &model.User{
 			Id: id,
@@ -163,7 +163,21 @@ func TestUserHasBeenCreated(t *testing.T) {
 
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
-		time.Sleep(1 * time.Second)
+		assert.NotEqual(t, user.Username, original.Username)
+	})
+
+	t.Run("nickname matching word is banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id: id,
+			Email:       id + "@gooddomain.com",
+			Nickname:    "Neil Sucks",
+			Username:    "reasonable-" + id,
+			Password:    "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
 
 		assert.NotEqual(t, user.Username, original.Username)
 	})
@@ -183,9 +197,7 @@ func TestUserHasBeenCreated(t *testing.T) {
 
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
-		time.Sleep(1 * time.Second)
-
-		assert.Equal(t, user.Username, original.Username)
+		assert.NotEqual(t, user.Username, original.Username)
 	})
 
 	t.Run("user matching email is banned", func(_ *testing.T) {
@@ -219,8 +231,6 @@ func TestUserHasBeenCreated(t *testing.T) {
 
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
-		time.Sleep(1 * time.Second)
-
 		assert.Equal(t, user.Username, original.Username)
 	})
 
@@ -236,8 +246,6 @@ func TestUserHasBeenCreated(t *testing.T) {
 		original := *user
 
 		p.UserHasBeenCreated(&plugin.Context{}, user)
-
-		time.Sleep(1 * time.Second)
 
 		assert.Equal(t, user.Username, original.Username)
 	})
