@@ -19,7 +19,7 @@ const manifestStr = `
   "homepage_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit",
   "support_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit/issues",
   "release_notes_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit/releases/tag/v2.0.0",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "min_server_version": "9.3.0",
   "server": {
     "executables": {
