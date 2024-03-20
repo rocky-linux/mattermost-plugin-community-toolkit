@@ -122,7 +122,7 @@ func (p *Plugin) UserHasBeenCreated(_ *plugin.Context, user *model.User) {
 	}
 
 	// Copy the user so we can record the original attributes
-	original := user
+	original := *user
 
 	// Perform the cleanup operation
 	if !p.cleanupUser(user) {
@@ -176,6 +176,7 @@ func (p *Plugin) cleanupUser(user *model.User) bool {
 	user.Nickname = fmt.Sprintf("sanitized-%s", user.Id)
 	user.Username = fmt.Sprintf("sanitized-%s", user.Id)
 
+	fmt.Println(p.API)
 	user, err := p.API.UpdateUser(user)
 	if err != nil {
 		fmt.Printf("Unable to sanitize user")

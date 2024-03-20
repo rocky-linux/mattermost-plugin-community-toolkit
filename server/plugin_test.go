@@ -1,6 +1,7 @@
 package main
 
 import (
+	// "fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -104,6 +105,34 @@ func TestMessageWillBePosted(t *testing.T) {
 	})
 }
 
+type MockAPI struct {
+	plugin.API
+	UpdateUserFunc func(user *model.User) (*model.User, *model.AppError)
+}
+
+func (m *MockAPI) UpdateUser(user *model.User) (*model.User, *model.AppError) {
+    if m.UpdateUserFunc != nil {
+        return m.UpdateUserFunc(user)
+    }
+    return user, nil // Default behavior
+}
+
+func (m *MockAPI) DeleteUser(userID string) *model.AppError {
+	return nil
+}
+
+func (m *MockAPI) GetTeamsForUser(userID string) ([]*model.Team, *model.AppError) {
+	return nil, nil
+}
+
+func (m *MockAPI) GetUserByUsername(userName string) (*model.User, *model.AppError) {
+	return nil, nil
+}
+
+func (m *MockAPI) DeleteTeamMember(teamID string, userID string, adminID string) *model.AppError {
+	return nil
+}
+
 func TestUserHasBeenCreated(t *testing.T) {
 	p := Plugin{
 		configuration: &configuration{
@@ -111,23 +140,105 @@ func TestUserHasBeenCreated(t *testing.T) {
 			RejectPosts:      false,
 			BadWordsList:     "def ghi,abc",
 			BadDomainsList:   "baddomain.com,bad.org",
-			BadUsernamesList: "hate,neil",
+			BadUsernamesList: "hate",
 			ExcludeBots:      true,
+			BlockNewUserPM: true,
+			BlockNewUserPMTime: "4h",
 		},
 	}
+	p.SetAPI(&MockAPI{})
 	p.badDomainsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadDomainsList, defaultRegexTemplate))
 	p.badUsernamesRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadUsernamesList, `(?mi)(%s)`))
 
-	t.Run("user matching word is banned", func(t *testing.T) {
+	t.Run("user matching word is banned", func(_ *testing.T) {
+		id := model.NewId()
 		user := &model.User{
-			Email:       model.NewId() + "@baddomain.com",
+			Id: id,
+			Email:       id + "@gooddomain.com",
 			Nickname:    "Neil Sucks",
-			Username:    "ihateneil" + model.NewId(),
+			Username:    "ihateneil-" + id,
 			Password:    "passwd12345",
-			AuthService: "",
 		}
+		original := *user
+
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
 		time.Sleep(1 * time.Second)
+
+		assert.NotEqual(t, user.Username, original.Username)
+	})
+
+	// NOTE(nhanlon): 2024-03-20 I'm not sure if this test is really necessary, but I'm including it to 
+	// highlight that your badDomain list must be curated carefully and the combinations of potential word bits.
+	t.Run("user matching word stub is banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id: id,
+			Email:       id + "@gooddomain.com",
+			Nickname:    "Neil Sucks",
+			Username:    "shakeoffthehaters-" + id,
+			Password:    "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		time.Sleep(1 * time.Second)
+
+		assert.Equal(t, user.Username, original.Username)
+	})
+
+	t.Run("user matching email is banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id: id,
+			Email:       id + "@baddomain.com",
+			Nickname:    "Neil Is Awesome",
+			Username:    "neilfan-" + id,
+			Password:    "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		time.Sleep(1 * time.Second)
+
+		assert.NotEqual(t, user.Username, original.Username)
+	})
+
+	t.Run("user not matching email nor name is not banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id: id,
+			Email:       id + "@gooddomain.com",
+			Nickname:    "Neil Is Awesome",
+			Username:    "neilfan-" + id,
+			Password:    "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		time.Sleep(1 * time.Second)
+
+		assert.Equal(t, user.Username, original.Username)
+	})
+
+	t.Run("user with email domain partial in bad list is not banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id: id,
+			Email:       id + "@lookslikeabaddomain.com",
+			Nickname:    "Neil Is Awesome",
+			Username:    "neilfan-" + id,
+			Password:    "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		time.Sleep(1 * time.Second)
+
+		assert.Equal(t, user.Username, original.Username)
 	})
 }
