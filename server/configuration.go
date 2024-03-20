@@ -101,6 +101,10 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.setConfiguration(configuration)
 
+	if p.cache == nil {
+		p.cache = NewLRUCache(50)
+	}
+
 	p.badWordsRegex = splitWordListToRegex(configuration.BadWordsList)
 	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
