@@ -1,6 +1,8 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -24,6 +26,7 @@ import (
 type configuration struct {
 	BadDomainsList     string
 	BadUsernamesList   string
+	BuiltinBadDomains  bool
 	BadWordsList       string
 	BlockNewUserPM     bool
 	BlockNewUserPMTime string
@@ -32,6 +35,9 @@ type configuration struct {
 	RejectPosts        bool
 	WarningMessage     string `json:"WarningMessage"`
 }
+
+//go:embed bad-domains.txt
+var builtinDomainList string
 
 // The default regex template
 const defaultRegexTemplate = `(?mi)\b(%s)\b`
@@ -99,10 +105,31 @@ func (p *Plugin) OnConfigurationChange() error {
 	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
+	domainList, err := jsonArrayToStringSlice(builtinDomainList)
+	if err != nil {
+		return errors.Wrap(err, "failed to pase builtin domains list")
+	}
+	fmt.Println(*domainList)
+	p.badDomainsList = domainList
+
 	return nil
 }
 
+func jsonArrayToStringSlice(jsonArray string) (*[]string, error) {
+	var result []string
+	err := json.Unmarshal([]byte(jsonArray), &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 func splitWordListToRegex(wordList string, regexTemplateOptional ...string) *regexp.Regexp {
+	// If there's no list of words, don't make them into a regex
+	if len(wordList) < 1 {
+		return nil
+	}
+
 	// Choose the regex template
 	regexTemplate := defaultRegexTemplate
 	if len(regexTemplateOptional) > 0 {

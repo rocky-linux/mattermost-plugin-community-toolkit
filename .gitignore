@@ -1,4 +1,2 @@
 dist
-server/manifest.go
-webapp/src/manifest.ts
 bin/

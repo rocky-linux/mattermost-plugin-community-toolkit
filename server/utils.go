@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"unicode"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -33,4 +34,14 @@ func (p *Plugin) sendUserEphemeralMessageForPost(post *model.Post, message strin
 		Message:   message,
 		RootId:    post.RootId,
 	})
+}
+
+func EndsWith(search []string, target string) bool {
+	for _, s := range search {
+		// if the TARGET ends with search
+		if strings.HasSuffix(target, s) {
+			return true
+		}
+	}
+	return false
 }

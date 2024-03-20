@@ -24,6 +24,8 @@ type Plugin struct {
 	badWordsRegex     *regexp.Regexp
 	badDomainsRegex   *regexp.Regexp
 	badUsernamesRegex *regexp.Regexp
+
+	badDomainsList    *[]string
 }
 
 // Plugin Callback: MessageWillBePosted
@@ -48,9 +50,9 @@ func (p *Plugin) FilterPost(post *model.Post) (*model.Post, string) {
 		return p.FilterDirectMessage(configuration, post)
 	}
 
-	if len(post.Message) > 500 && strings.Contains(post.Message, "```") {
-		p.sendUserEphemeralMessageForPost(post, fmt.Sprintf("notice: your message has large amounts of text and has been copied to our paste bin: %s", "https://rpa.st/TODO-MAKETHISWORK"))
-	}
+	// if len(post.Message) > 500 && strings.Contains(post.Message, "```") {
+	// 	p.sendUserEphemeralMessageForPost(post, fmt.Sprintf("notice: your message has large amounts of text and has been copied to our paste bin: %s", "https://rpa.st/TODO-MAKETHISWORK"))
+	// }
 
 	return p.FilterPostBadWords(configuration, post)
 }
