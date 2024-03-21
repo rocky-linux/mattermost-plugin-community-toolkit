@@ -1,4 +1,4 @@
-module github.com/mattermost/mattermost-plugin-community-toolkit
+module github.com/rocky-linux/mattermost-plugin-community-toolkit
 
 go 1.21
 
