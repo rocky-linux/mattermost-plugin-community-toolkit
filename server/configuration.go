@@ -90,6 +90,15 @@ func (p *Plugin) setConfiguration(configuration *configuration) {
 	p.configuration = configuration
 }
 
+func (p *Plugin) setupBadDomainList() error {
+	domainList, err := jsonArrayToStringSlice(builtinDomainList)
+	if err != nil {
+		return errors.Wrap(err, "failed to pase builtin domains list")
+	}
+	p.badDomainsList = domainList
+	return nil
+}
+
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
 	var configuration = new(configuration)
@@ -109,11 +118,7 @@ func (p *Plugin) OnConfigurationChange() error {
 	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
-	domainList, err := jsonArrayToStringSlice(builtinDomainList)
-	if err != nil {
-		return errors.Wrap(err, "failed to pase builtin domains list")
-	}
-	p.badDomainsList = domainList
+	p.setupBadDomainList()
 
 	return nil
 }

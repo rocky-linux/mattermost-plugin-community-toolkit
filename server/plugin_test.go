@@ -144,11 +144,13 @@ func TestUserHasBeenCreated(t *testing.T) {
 			ExcludeBots:        true,
 			BlockNewUserPM:     true,
 			BlockNewUserPMTime: "4h",
+			BuiltinBadDomains:  true,
 		},
 	}
 	p.SetAPI(&MockAPI{})
 	p.badDomainsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadDomainsList, defaultRegexTemplate))
 	p.badUsernamesRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadUsernamesList, `(?mi)(%s)`))
+	p.setupBadDomainList()
 
 	t.Run("username matching word is banned", func(_ *testing.T) {
 		id := model.NewId()
@@ -191,6 +193,38 @@ func TestUserHasBeenCreated(t *testing.T) {
 			Email:    id + "@gooddomain.com",
 			Nickname: "Neil Sucks",
 			Username: "shakeoffthehaters-" + id,
+			Password: "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		assert.NotEqual(t, user.Username, original.Username)
+	})
+
+	t.Run("email matching word stub is not banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id:       id,
+			Email:    id + "@yahoo.com", // yahoo should be allowed, but not stubs.
+			Nickname: "Neil Is Alright",
+			Username: "alright-" + id,
+			Password: "passwd12345",
+		}
+		original := *user
+
+		p.UserHasBeenCreated(&plugin.Context{}, user)
+
+		assert.Equal(t, user.Username, original.Username)
+	})
+
+	t.Run("email matching email in default list banned", func(_ *testing.T) {
+		id := model.NewId()
+		user := &model.User{
+			Id:       id,
+			Email:    id + "@hoo.com",
+			Nickname: "Neil Is Alright",
+			Username: "alright-" + id,
 			Password: "passwd12345",
 		}
 		original := *user

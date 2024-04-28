@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -36,10 +37,15 @@ func (p *Plugin) sendUserEphemeralMessageForPost(post *model.Post, message strin
 	})
 }
 
-func EndsWith(search []string, target string) bool {
+func EndsWith(search []string, email string) bool {
+	// search is a slice of strings with WHOLE domains to match against
+	// email is a string containing an email which we will compare the DOMAIN part only.
+	domain := strings.SplitN(email, "@", 2)
+	target := domain[1]
 	for _, s := range search {
 		// if the TARGET ends with search
-		if strings.HasSuffix(target, s) {
+		if target == s {
+			fmt.Printf("FOUND: %s in %s\n", s, target)
 			return true
 		}
 	}
