@@ -76,6 +76,12 @@ func (p *Plugin) FilterDirectMessage(configuration *configuration, post *model.P
 		return nil, "Failed to get user"
 	}
 
+	// Check if the filter is enabled indefinitely (duration is -1)
+	if configuration.BlockNewUserPMTime == "-1" {
+		p.sendUserEphemeralMessageForPost(post, "Configuration settings limit new users from sending private messages.")
+		return nil, "New user not allowed to send DMs indefinitely."
+	}
+
 	userCreateSeconds := user.CreateAt / 1000
 	createdAt := time.Unix(userCreateSeconds, 0)
 	blockDuration := configuration.BlockNewUserPMTime

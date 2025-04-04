@@ -54,7 +54,7 @@
         "key": "BlockNewUserPMTime",
         "display_name": "Block New User PMs Time:",
         "type": "text",
-        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m))",
+        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
         "default": "24h"
       },
       {
