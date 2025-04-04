@@ -24,16 +24,20 @@ import (
 // If you add non-reference types to your configuration struct, be sure to rewrite Clone as a deep
 // copy appropriate for your types.
 type configuration struct {
-	BadDomainsList     string
-	BadUsernamesList   string
-	BuiltinBadDomains  bool
-	BadWordsList       string
-	BlockNewUserPM     bool
-	BlockNewUserPMTime string
-	CensorCharacter    string
-	ExcludeBots        bool
-	RejectPosts        bool
-	WarningMessage     string `json:"WarningMessage"`
+	BadDomainsList         string
+	BadUsernamesList       string
+	BuiltinBadDomains      bool
+	BadWordsList           string
+	BlockNewUserPM         bool
+	BlockNewUserPMTime     string
+	BlockNewUserLinks      bool
+	BlockNewUserLinksTime  string
+	BlockNewUserImages     bool
+	BlockNewUserImagesTime string
+	CensorCharacter        string
+	ExcludeBots            bool
+	RejectPosts            bool
+	WarningMessage         string `json:"WarningMessage"`
 }
 
 //go:embed bad-domains.txt
