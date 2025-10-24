@@ -3,6 +3,7 @@ package main
 import (
 	// "fmt"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,7 +151,7 @@ func TestUserHasBeenCreated(t *testing.T) {
 	p.SetAPI(&MockAPI{})
 	p.badDomainsRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadDomainsList, defaultRegexTemplate))
 	p.badUsernamesRegex = regexp.MustCompile(wordListToRegex(p.getConfiguration().BadUsernamesList, `(?mi)(%s)`))
-	p.setupBadDomainList()
+	_ = p.setupBadDomainList()
 
 	t.Run("username matching word is banned", func(_ *testing.T) {
 		id := model.NewId()
@@ -282,5 +283,418 @@ func TestUserHasBeenCreated(t *testing.T) {
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
 		assert.Equal(t, user.Username, original.Username)
+	})
+}
+
+// Extended MockAPI for FilterDirectMessage tests
+type ExtendedMockAPI struct {
+	MockAPI
+	GetUserFunc           func(userID string) (*model.User, *model.AppError)
+	GetChannelFunc        func(channelID string) (*model.Channel, *model.AppError)
+	SendEphemeralPostFunc func(userID string, post *model.Post) *model.Post
+}
+
+func (m *ExtendedMockAPI) GetUser(userID string) (*model.User, *model.AppError) {
+	if m.GetUserFunc != nil {
+		return m.GetUserFunc(userID)
+	}
+	return &model.User{Id: userID}, nil
+}
+
+func (m *ExtendedMockAPI) GetChannel(channelID string) (*model.Channel, *model.AppError) {
+	if m.GetChannelFunc != nil {
+		return m.GetChannelFunc(channelID)
+	}
+	return &model.Channel{Id: channelID, Type: model.ChannelTypeDirect}, nil
+}
+
+func (m *ExtendedMockAPI) SendEphemeralPost(userID string, post *model.Post) *model.Post {
+	if m.SendEphemeralPostFunc != nil {
+		return m.SendEphemeralPostFunc(userID, post)
+	}
+	return post
+}
+
+func TestFilterDirectMessage(t *testing.T) {
+	t.Run("blocks new user within time restriction", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "24h",
+			},
+			cache: NewLRUCache(10),
+		}
+
+		// User created 1 hour ago
+		oneHourAgo := model.GetMillis() - (60 * 60 * 1000)
+		testUser := &model.User{
+			Id:       "new-user",
+			CreateAt: oneHourAgo,
+		}
+
+		ephemeralSent := false
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				if userID == "new-user" {
+					return testUser, nil
+				}
+				return nil, model.NewAppError("GetUser", "user not found", nil, "", 404)
+			},
+			SendEphemeralPostFunc: func(userID string, post *model.Post) *model.Post {
+				ephemeralSent = true
+				assert.Equal(t, "Configuration settings limit new users from sending private messages.", post.Message)
+				return post
+			},
+		})
+
+		post := &model.Post{
+			UserId:    "new-user",
+			ChannelId: "dm-channel",
+			Message:   "Hello",
+		}
+
+		resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+		assert.Nil(t, resultPost)
+		assert.Contains(t, rejectReason, "New user not allowed to send DM")
+		assert.True(t, ephemeralSent)
+	})
+
+	t.Run("allows user past time restriction", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "24h",
+			},
+			cache: NewLRUCache(10),
+		}
+
+		// User created 25 hours ago
+		twentyFiveHoursAgo := model.GetMillis() - (25 * 60 * 60 * 1000)
+		testUser := &model.User{
+			Id:       "old-user",
+			CreateAt: twentyFiveHoursAgo,
+		}
+
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				if userID == "old-user" {
+					return testUser, nil
+				}
+				return nil, model.NewAppError("GetUser", "user not found", nil, "", 404)
+			},
+		})
+
+		post := &model.Post{
+			UserId:    "old-user",
+			ChannelId: "dm-channel",
+			Message:   "Hello",
+		}
+
+		resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+		assert.Equal(t, post, resultPost)
+		assert.Empty(t, rejectReason)
+	})
+
+	t.Run("handles invalid duration format", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "invalid-duration",
+			},
+			cache: NewLRUCache(10),
+		}
+
+		testUser := &model.User{
+			Id:       "user",
+			CreateAt: model.GetMillis(),
+		}
+
+		ephemeralSent := false
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				return testUser, nil
+			},
+			SendEphemeralPostFunc: func(userID string, post *model.Post) *model.Post {
+				ephemeralSent = true
+				assert.Equal(t, "Something went wrong when sending your message. Contact an administrator.", post.Message)
+				return post
+			},
+		})
+
+		post := &model.Post{
+			UserId:    "user",
+			ChannelId: "dm-channel",
+			Message:   "Hello",
+		}
+
+		resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+		assert.Nil(t, resultPost)
+		assert.Equal(t, "failed to parse duration", rejectReason)
+		assert.True(t, ephemeralSent)
+	})
+
+	t.Run("handles user not found error", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "24h",
+			},
+			cache: NewLRUCache(10),
+		}
+
+		ephemeralSent := false
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				return nil, model.NewAppError("GetUser", "user not found", nil, "", 404)
+			},
+			SendEphemeralPostFunc: func(userID string, post *model.Post) *model.Post {
+				ephemeralSent = true
+				assert.Equal(t, "Something went wrong when sending your message. Contact an administrator.", post.Message)
+				return post
+			},
+		})
+
+		post := &model.Post{
+			UserId:    "non-existent",
+			ChannelId: "dm-channel",
+			Message:   "Hello",
+		}
+
+		resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+		assert.Nil(t, resultPost)
+		assert.Equal(t, "Failed to get user", rejectReason)
+		assert.True(t, ephemeralSent)
+	})
+
+	t.Run("handles exact time boundary", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "1h",
+			},
+			cache: NewLRUCache(10),
+		}
+
+		// User created exactly 1 hour ago (boundary case)
+		exactlyOneHourAgo := model.GetMillis() - (60 * 60 * 1000)
+		testUser := &model.User{
+			Id:       "boundary-user",
+			CreateAt: exactlyOneHourAgo,
+		}
+
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				return testUser, nil
+			},
+		})
+
+		post := &model.Post{
+			UserId:    "boundary-user",
+			ChannelId: "dm-channel",
+			Message:   "Hello",
+		}
+
+		resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+		// Should be allowed as it's exactly at the boundary
+		assert.Equal(t, post, resultPost)
+		assert.Empty(t, rejectReason)
+	})
+
+	t.Run("handles complex duration formats", func(t *testing.T) {
+		testCases := []struct {
+			name        string
+			duration    string
+			hoursOld    int64
+			shouldBlock bool
+		}{
+			{"12h30m format - blocked", "12h30m", 12, true},
+			{"12h30m format - allowed", "12h30m", 13, false},
+			{"7d format - blocked", "168h", 167, true}, // 7 days = 168 hours
+			{"7d format - allowed", "168h", 169, false},
+			{"30m format - blocked", "30m", 0, true}, // 0 hours = less than 30 min
+			{"30m format - allowed", "30m", 1, false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				p := Plugin{
+					configuration: &configuration{
+						BlockNewUserPM:     true,
+						BlockNewUserPMTime: tc.duration,
+					},
+					cache: NewLRUCache(10),
+				}
+
+				createTime := model.GetMillis() - (tc.hoursOld * 60 * 60 * 1000)
+				testUser := &model.User{
+					Id:       "test-user",
+					CreateAt: createTime,
+				}
+
+				p.SetAPI(&ExtendedMockAPI{
+					GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+						return testUser, nil
+					},
+					SendEphemeralPostFunc: func(userID string, post *model.Post) *model.Post {
+						return post
+					},
+				})
+
+				post := &model.Post{
+					UserId:    "test-user",
+					ChannelId: "dm-channel",
+					Message:   "Test",
+				}
+
+				resultPost, rejectReason := p.FilterDirectMessage(p.configuration, post)
+
+				if tc.shouldBlock {
+					assert.Nil(t, resultPost)
+					assert.Contains(t, rejectReason, "New user not allowed")
+				} else {
+					assert.Equal(t, post, resultPost)
+					assert.Empty(t, rejectReason)
+				}
+			})
+		}
+	})
+}
+
+func TestGetUserByID(t *testing.T) {
+	t.Run("returns user from cache when present", func(t *testing.T) {
+		p := Plugin{
+			cache: NewLRUCache(10),
+		}
+
+		cachedUser := &model.User{
+			Id:       "cached-user",
+			Username: "cached",
+			Email:    "cached@test.com",
+		}
+
+		// Pre-populate cache
+		p.cache.Put("cached-user", cachedUser)
+
+		// API should not be called
+		apiCalled := false
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				apiCalled = true
+				return nil, nil
+			},
+		})
+
+		user, err := p.GetUserByID("cached-user")
+
+		assert.NoError(t, err)
+		assert.Equal(t, cachedUser.Id, user.Id)
+		assert.Equal(t, cachedUser.Username, user.Username)
+		assert.False(t, apiCalled, "API should not be called when user is in cache")
+	})
+
+	t.Run("fetches from API and caches when not in cache", func(t *testing.T) {
+		p := Plugin{
+			cache: NewLRUCache(10),
+		}
+
+		apiUser := &model.User{
+			Id:       "api-user",
+			Username: "fromapi",
+			Email:    "api@test.com",
+		}
+
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				if userID == "api-user" {
+					return apiUser, nil
+				}
+				return nil, model.NewAppError("GetUser", "not found", nil, "", 404)
+			},
+		})
+
+		// First call - should hit API
+		user, err := p.GetUserByID("api-user")
+
+		assert.NoError(t, err)
+		assert.Equal(t, apiUser.Id, user.Id)
+
+		// Verify it was cached
+		cachedUser, found := p.cache.Get("api-user")
+		assert.True(t, found)
+		assert.Equal(t, apiUser.Id, cachedUser.Id)
+
+		// Second call - should hit cache
+		apiCallCount := 0
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				apiCallCount++
+				return apiUser, nil
+			},
+		})
+
+		user2, err := p.GetUserByID("api-user")
+		assert.NoError(t, err)
+		assert.Equal(t, apiUser.Id, user2.Id)
+		assert.Equal(t, 0, apiCallCount, "API should not be called on cache hit")
+	})
+
+	t.Run("returns error when API fails", func(t *testing.T) {
+		p := Plugin{
+			cache: NewLRUCache(10),
+		}
+
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				return nil, model.NewAppError("GetUser", "database error", nil, "", 500)
+			},
+		})
+
+		user, err := p.GetUserByID("error-user")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find user with id")
+		assert.Equal(t, &model.User{}, user)
+
+		// Verify error case is not cached
+		_, found := p.cache.Get("error-user")
+		assert.False(t, found, "Failed API calls should not be cached")
+	})
+
+	t.Run("handles concurrent requests for same user", func(t *testing.T) {
+		p := Plugin{
+			cache: NewLRUCache(10),
+		}
+
+		apiCallCount := 0
+		p.SetAPI(&ExtendedMockAPI{
+			GetUserFunc: func(userID string) (*model.User, *model.AppError) {
+				apiCallCount++
+				return &model.User{
+					Id:       userID,
+					Username: "concurrent",
+				}, nil
+			},
+		})
+
+		// Launch concurrent requests
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = p.GetUserByID("concurrent-user")
+			}()
+		}
+		wg.Wait()
+
+		// API might be called multiple times due to race conditions,
+		// but cache should eventually contain the user
+		_, found := p.cache.Get("concurrent-user")
+		assert.True(t, found)
 	})
 }
