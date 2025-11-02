@@ -241,12 +241,12 @@ func (p *Plugin) containsImages(post *model.Post) bool {
 	// Check if the post has file attachments that are images
 	if post.Metadata != nil && len(post.Metadata.Files) > 0 {
 		for _, file := range post.Metadata.Files {
+			// Normalize extension by removing dot prefix and converting to lowercase
+			ext := strings.ToLower(strings.TrimPrefix(file.Extension, "."))
 			// Check if the file is an image based on its extension
-			if strings.HasPrefix(file.Extension, ".") {
-				ext := strings.ToLower(file.Extension)
-				if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".webp" {
-					return true
-				}
+			if ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "gif" || ext == "bmp" || ext == "webp" ||
+				ext == "svg" || ext == "tiff" || ext == "tif" || ext == "ico" || ext == "heic" || ext == "heif" || ext == "avif" {
+				return true
 			}
 		}
 	}

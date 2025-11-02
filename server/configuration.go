@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -112,6 +113,17 @@ func (p *Plugin) OnConfigurationChange() error {
 		return errors.Wrap(err, "failed to load plugin configuration")
 	}
 
+	// Validate duration configurations
+	if err := validateDurationConfig(configuration.BlockNewUserPMTime, "BlockNewUserPMTime"); err != nil {
+		return err
+	}
+	if err := validateDurationConfig(configuration.BlockNewUserLinksTime, "BlockNewUserLinksTime"); err != nil {
+		return err
+	}
+	if err := validateDurationConfig(configuration.BlockNewUserImagesTime, "BlockNewUserImagesTime"); err != nil {
+		return err
+	}
+
 	p.setConfiguration(configuration)
 
 	if p.cache == nil {
@@ -123,6 +135,27 @@ func (p *Plugin) OnConfigurationChange() error {
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
 	p.setupBadDomainList()
+
+	return nil
+}
+
+// validateDurationConfig validates that a duration string is either "-1" (indefinite) or a valid Go duration
+func validateDurationConfig(duration string, fieldName string) error {
+	// Empty duration is valid (feature disabled)
+	if duration == "" {
+		return nil
+	}
+
+	// "-1" means indefinite blocking, which is valid
+	if duration == "-1" {
+		return nil
+	}
+
+	// Try to parse as a valid Go duration
+	_, err := time.ParseDuration(duration)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("invalid duration format for %s: %s", fieldName, duration))
+	}
 
 	return nil
 }

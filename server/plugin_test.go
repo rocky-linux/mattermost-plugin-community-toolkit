@@ -133,6 +133,10 @@ func (m *MockAPI) DeleteTeamMember(teamID string, userID string, adminID string)
 	return nil
 }
 
+func (m *MockAPI) SendEphemeralPost(userID string, post *model.Post) *model.Post {
+	return post
+}
+
 func TestUserHasBeenCreated(t *testing.T) {
 	p := Plugin{
 		configuration: &configuration{
@@ -282,5 +286,351 @@ func TestUserHasBeenCreated(t *testing.T) {
 		p.UserHasBeenCreated(&plugin.Context{}, user)
 
 		assert.Equal(t, user.Username, original.Username)
+	})
+}
+
+// TestFilterNewUserLinks verifies the link blocking functionality for new users
+func TestFilterNewUserLinks(t *testing.T) {
+	now := time.Now()
+	newUserCreateAt := now.Unix() * 1000                      // Created now
+	oldUserCreateAt := now.Add(-48 * time.Hour).Unix() * 1000 // Created 48 hours ago
+
+	mockAPI := &MockAPI{
+		UpdateUserFunc: func(user *model.User) (*model.User, *model.AppError) {
+			return user, nil
+		},
+	}
+
+	t.Run("new user with link is blocked", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserLinks:     true,
+				BlockNewUserLinksTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add new user
+		p.cache = NewLRUCache(50)
+		newUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: newUserCreateAt,
+		}
+		p.cache.Put(newUser.Id, newUser)
+
+		post := &model.Post{
+			UserId:  newUser.Id,
+			Message: "Check out https://example.com",
+		}
+
+		filteredPost, msg := p.FilterNewUserLinks(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "Post with link from new user should be blocked")
+		assert.Contains(t, msg, "not allowed")
+		assert.Contains(t, msg, "links")
+	})
+
+	t.Run("old user with link is allowed", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserLinks:     true,
+				BlockNewUserLinksTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add old user
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Check out https://example.com",
+		}
+
+		filteredPost, msg := p.FilterNewUserLinks(p.getConfiguration(), post)
+
+		assert.NotNil(t, filteredPost, "Post with link from old user should be allowed")
+		assert.Empty(t, msg)
+	})
+
+	t.Run("indefinite blocking with -1 duration", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserLinks:     true,
+				BlockNewUserLinksTime: "-1",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add user (even old users should be blocked)
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Visit www.example.com",
+		}
+
+		filteredPost, msg := p.FilterNewUserLinks(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "Post with link should be blocked with indefinite duration")
+		assert.Contains(t, msg, "indefinitely")
+	})
+}
+
+// TestFilterNewUserImages verifies the image blocking functionality for new users
+func TestFilterNewUserImages(t *testing.T) {
+	now := time.Now()
+	newUserCreateAt := now.Unix() * 1000                      // Created now
+	oldUserCreateAt := now.Add(-48 * time.Hour).Unix() * 1000 // Created 48 hours ago
+
+	mockAPI := &MockAPI{
+		UpdateUserFunc: func(user *model.User) (*model.User, *model.AppError) {
+			return user, nil
+		},
+	}
+
+	t.Run("new user with image is blocked", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserImages:     true,
+				BlockNewUserImagesTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add new user
+		p.cache = NewLRUCache(50)
+		newUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: newUserCreateAt,
+		}
+		p.cache.Put(newUser.Id, newUser)
+
+		post := &model.Post{
+			UserId:  newUser.Id,
+			Message: "![image](https://example.com/image.png)",
+		}
+
+		filteredPost, msg := p.FilterNewUserImages(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "Post with image from new user should be blocked")
+		assert.Contains(t, msg, "not allowed")
+		assert.Contains(t, msg, "images")
+	})
+
+	t.Run("old user with image is allowed", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserImages:     true,
+				BlockNewUserImagesTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add old user
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Here's a photo",
+			Metadata: &model.PostMetadata{
+				Files: []*model.FileInfo{
+					{
+						Extension: ".jpg",
+						Name:      "photo.jpg",
+					},
+				},
+			},
+		}
+
+		filteredPost, msg := p.FilterNewUserImages(p.getConfiguration(), post)
+
+		assert.NotNil(t, filteredPost, "Post with image from old user should be allowed")
+		assert.Empty(t, msg)
+	})
+
+	t.Run("indefinite blocking with -1 duration", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserImages:     true,
+				BlockNewUserImagesTime: "-1",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add user (even old users should be blocked)
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Photo attached",
+			Metadata: &model.PostMetadata{
+				Images: map[string]*model.PostImage{
+					"https://example.com/image.jpg": {},
+				},
+			},
+		}
+
+		filteredPost, msg := p.FilterNewUserImages(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "Post with image should be blocked with indefinite duration")
+		assert.Contains(t, msg, "indefinitely")
+	})
+
+	t.Run("new user with multiple images is blocked", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserImages:     true,
+				BlockNewUserImagesTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add new user
+		p.cache = NewLRUCache(50)
+		newUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: newUserCreateAt,
+		}
+		p.cache.Put(newUser.Id, newUser)
+
+		post := &model.Post{
+			UserId:  newUser.Id,
+			Message: "Multiple photos",
+			Metadata: &model.PostMetadata{
+				Files: []*model.FileInfo{
+					{
+						Extension: ".jpg",
+						Name:      "photo1.jpg",
+					},
+					{
+						Extension: ".png",
+						Name:      "photo2.png",
+					},
+				},
+			},
+		}
+
+		filteredPost, msg := p.FilterNewUserImages(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "Post with multiple images from new user should be blocked")
+		assert.Contains(t, msg, "not allowed")
+	})
+}
+
+// TestFilterDirectMessageIndefiniteDuration verifies the refactored DM blocking works with indefinite duration
+func TestFilterDirectMessageIndefiniteDuration(t *testing.T) {
+	now := time.Now()
+	newUserCreateAt := now.Unix() * 1000                      // Created now
+	oldUserCreateAt := now.Add(-48 * time.Hour).Unix() * 1000 // Created 48 hours ago
+
+	mockAPI := &MockAPI{
+		UpdateUserFunc: func(user *model.User) (*model.User, *model.AppError) {
+			return user, nil
+		},
+	}
+
+	t.Run("indefinite DM blocking with -1 duration", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "-1",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add user (even old users should be blocked)
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Direct message to another user",
+		}
+
+		filteredPost, msg := p.FilterDirectMessage(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "DM should be blocked with indefinite duration")
+		assert.Contains(t, msg, "indefinitely")
+	})
+
+	t.Run("standard duration still works", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add new user
+		p.cache = NewLRUCache(50)
+		newUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: newUserCreateAt,
+		}
+		p.cache.Put(newUser.Id, newUser)
+
+		post := &model.Post{
+			UserId:  newUser.Id,
+			Message: "Direct message",
+		}
+
+		filteredPost, msg := p.FilterDirectMessage(p.getConfiguration(), post)
+
+		assert.Nil(t, filteredPost, "DM from new user should be blocked with standard duration")
+		assert.Contains(t, msg, "not allowed")
+	})
+
+	t.Run("old user with standard duration is allowed", func(t *testing.T) {
+		p := Plugin{
+			configuration: &configuration{
+				BlockNewUserPM:     true,
+				BlockNewUserPMTime: "24h",
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		// Create cache and add old user
+		p.cache = NewLRUCache(50)
+		oldUser := &model.User{
+			Id:       model.NewId(),
+			CreateAt: oldUserCreateAt,
+		}
+		p.cache.Put(oldUser.Id, oldUser)
+
+		post := &model.Post{
+			UserId:  oldUser.Id,
+			Message: "Direct message",
+		}
+
+		filteredPost, msg := p.FilterDirectMessage(p.getConfiguration(), post)
+
+		assert.NotNil(t, filteredPost, "DM from old user should be allowed")
+		assert.Empty(t, msg)
 	})
 }

@@ -82,7 +82,43 @@ const manifestStr = `
         "key": "BlockNewUserPMTime",
         "display_name": "Block New User PMs Time:",
         "type": "text",
-        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m))",
+        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
+        "placeholder": "",
+        "default": "24h",
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserLinks",
+        "display_name": "Block New User Links:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from posting links for some time (see BlockNewUserLinksTime)",
+        "placeholder": "",
+        "default": null,
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserLinksTime",
+        "display_name": "Block New User Links Time:",
+        "type": "text",
+        "help_text": "How long to block link posts for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
+        "placeholder": "",
+        "default": "24h",
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserImages",
+        "display_name": "Block New User Images:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from posting images for some time (see BlockNewUserImagesTime)",
+        "placeholder": "",
+        "default": null,
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserImagesTime",
+        "display_name": "Block New User Images Time:",
+        "type": "text",
+        "help_text": "How long to block image posts for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
         "placeholder": "",
         "default": "24h",
         "hosting": ""
