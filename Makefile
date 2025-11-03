@@ -11,6 +11,7 @@ DEFAULT_GOOS := $(shell go env GOOS)
 DEFAULT_GOARCH := $(shell go env GOARCH)
 
 export GO111MODULE=on
+export CGO_ENABLED=0
 
 # We need to export GOBIN to allow it to be set
 # for processes spawned from the Makefile
@@ -52,7 +53,7 @@ apply:
 install-go-tools:
 	@echo Installing go tools
 	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0
-	$(GO) install gotest.tools/gotestsum@v1.7.0
+	$(GO) install gotest.tools/gotestsum@v1.13.0
 
 ## Runs eslint and golangci-lint
 .PHONY: check-style

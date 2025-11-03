@@ -40,3 +40,11 @@ Choose to either censor the bad words with a character or reject the post with a
 ![Post censored by the plugin](./images/post-censored.gif)
 
 In addition to the Bad Word List, a Bad Domain and Bad Username list is available to configure. The Bad Domain list is prepopulated with a [list](https://github.com/unkn0w/disposable-email-domain-list) of known disposable email addresses. Both the domain and username lists support regular expressions.
+
+## Contributing
+
+Want to help improve the Mattermost Community Toolkit Plugin? Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
+
+* Development environment setup
+* Build system and make commands
+* Debugging and troubleshooting
