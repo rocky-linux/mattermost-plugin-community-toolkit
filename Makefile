@@ -51,7 +51,7 @@ apply:
 ## Install go tools
 install-go-tools:
 	@echo Installing go tools
-	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
+	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0
 	$(GO) install gotest.tools/gotestsum@v1.7.0
 
 ## Runs eslint and golangci-lint
@@ -284,6 +284,150 @@ logs:
 
 .PHONY: logs-watch
 logs-watch:
+	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
+
+# Development environment management with Docker Compose
+DOCKER_COMPOSE_FILE ?= docker-compose.yml
+DOCKER_COMPOSE := docker-compose -f $(DOCKER_COMPOSE_FILE)
+
+## Starts the Docker Compose development stack.
+.PHONY: dev-up
+dev-up:
+	@echo "Starting development environment..."
+	$(DOCKER_COMPOSE) up -d
+	@echo "Waiting for Mattermost to be ready..."
+	@timeout 60 bash -c 'until $$(curl -s http://localhost:8065/api/v4/system/ping > /dev/null 2>&1); do sleep 2; done' || echo "Mattermost is starting. Access at http://localhost:8065"
+
+## Stops the Docker Compose development stack.
+.PHONY: dev-down
+dev-down:
+	@echo "Stopping development environment..."
+	$(DOCKER_COMPOSE) down
+
+## Alias for dev-up
+.PHONY: dev-start
+dev-start: dev-up
+
+## Alias for dev-down
+.PHONY: dev-stop
+dev-stop: dev-down
+
+## Restarts the Docker Compose development stack.
+.PHONY: dev-restart
+dev-restart: dev-down dev-up
+
+## Removes containers, volumes, and data for a clean start.
+.PHONY: dev-clean
+dev-clean:
+	@echo "Cleaning development environment (removing containers, volumes, and data)..."
+	$(DOCKER_COMPOSE) down -v
+	rm -rf docker/data/* docker/config/*
+	@echo "Development environment cleaned. Run 'make dev-up' to start fresh."
+
+## Views Mattermost server logs.
+.PHONY: dev-logs
+dev-logs:
+	$(DOCKER_COMPOSE) logs mattermost
+
+## Tails Mattermost server logs in real-time.
+.PHONY: dev-logs-watch
+dev-logs-watch:
+	$(DOCKER_COMPOSE) logs -f mattermost
+
+## Builds and deploys the plugin to the Docker development stack.
+.PHONY: dev-deploy
+dev-deploy: dist
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@echo "Deploying plugin to development environment..."
+	@if [ -f docker/.env ]; then \
+		echo "Loading environment variables from docker/.env..."; \
+		set -a && . docker/.env && set +a; \
+	fi
+	@if [ -z "$$MM_ADMIN_TOKEN" ] && [ -z "$$MM_ADMIN_USERNAME" ]; then \
+		echo "Warning: MM_ADMIN_TOKEN or MM_ADMIN_USERNAME/MM_ADMIN_PASSWORD not set."; \
+		echo "Please set them in docker/.env or export them in your shell."; \
+		echo "See docker/env.example for an example."; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl deploy $(PLUGIN_ID) dist/$(BUNDLE_NAME)
+	@echo "Plugin deployed. Run 'make dev-enable' to enable it, or enable via System Console."
+
+## Opens a shell in the Mattermost container.
+.PHONY: dev-shell
+dev-shell:
+	$(DOCKER_COMPOSE) exec mattermost /bin/sh
+
+## Shows status of Docker Compose services.
+.PHONY: dev-status
+dev-status:
+	$(DOCKER_COMPOSE) ps
+
+## Enables the plugin in the development environment.
+.PHONY: dev-enable
+dev-enable:
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@if [ -f docker/.env ]; then \
+		set -a && . docker/.env && set +a; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl enable $(PLUGIN_ID)
+
+## Disables the plugin in the development environment.
+.PHONY: dev-disable
+dev-disable:
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@if [ -f docker/.env ]; then \
+		set -a && . docker/.env && set +a; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl disable $(PLUGIN_ID)
+
+## Resets the plugin in the development environment (disables and re-enables).
+.PHONY: dev-reset
+dev-reset:
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@if [ -f docker/.env ]; then \
+		set -a && . docker/.env && set +a; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl reset $(PLUGIN_ID)
+
+## Views plugin logs in the development environment.
+.PHONY: dev-plugin-logs
+dev-plugin-logs:
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@if [ -f docker/.env ]; then \
+		set -a && . docker/.env && set +a; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl logs $(PLUGIN_ID)
+
+## Tails plugin logs in the development environment.
+.PHONY: dev-plugin-logs-watch
+dev-plugin-logs-watch:
+	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
+		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+		exit 1; \
+	fi
+	@if [ -f docker/.env ]; then \
+		set -a && . docker/.env && set +a; \
+	fi
+	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
 	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
 
 # Help documentation à la https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

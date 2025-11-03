@@ -1,3 +1,6 @@
 dist
 vendor/
 bin/
+docker/data/
+docker/config/
+.env
