@@ -94,6 +94,10 @@ else
 endif
 endif
 
+## Alias for server target - builds the server component.
+.PHONY: build
+build: server
+
 ## Ensures NPM dependencies are installed without having to run this all the time.
 webapp/node_modules: $(wildcard webapp/package.json)
 ifneq ($(HAS_WEBAPP),)
@@ -279,6 +283,24 @@ ifneq ($(HAS_WEBAPP),)
 endif
 	rm -fr build/bin/
 
+## Formats Go and Markdown code.
+.PHONY: format
+format:
+	@echo Formatting code...
+ifneq ($(HAS_SERVER),)
+	@echo Formatting Go files...
+	$(GO) fmt ./...
+endif
+	@echo Formatting Markdown files...
+	@if command -v prettier > /dev/null 2>&1; then \
+		prettier --write "**/*.md"; \
+	elif command -v npx > /dev/null 2>&1; then \
+		npx --yes prettier --write "**/*.md"; \
+	else \
+		echo "Warning: prettier not found. Install it with 'npm install -g prettier' to format Markdown files."; \
+	fi
+	@echo Formatting complete.
+
 .PHONY: logs
 logs:
 	./build/bin/pluginctl logs $(PLUGIN_ID)
@@ -287,23 +309,40 @@ logs:
 logs-watch:
 	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
 
-# Development environment management with Docker Compose
-DOCKER_COMPOSE_FILE ?= docker-compose.yml
-DOCKER_COMPOSE := docker-compose -f $(DOCKER_COMPOSE_FILE)
+# Development environment management with Podman Compose
+PODMAN_COMPOSE_FILE ?= podman-compose.yml
+PODMAN_COMPOSE := podman-compose -f $(PODMAN_COMPOSE_FILE)
 
-## Starts the Docker Compose development stack.
+## Sets up the required directories for Podman development stack.
+.PHONY: dev-setup
+dev-setup:
+	@echo "Setting up development environment directories..."
+	@mkdir -p podman/data/mattermost/plugins podman/data/mattermost/client/plugins podman/data/postgres podman/config
+	@chmod -R 777 podman/config podman/data/mattermost 2>/dev/null || true
+	@echo "Directories created and permissions set."
+
+## Starts the Podman Compose development stack.
 .PHONY: dev-up
-dev-up:
+dev-up: dev-setup
 	@echo "Starting development environment..."
-	$(DOCKER_COMPOSE) up -d
+	$(PODMAN_COMPOSE) up -d
 	@echo "Waiting for Mattermost to be ready..."
 	@timeout 60 bash -c 'until $$(curl -s http://localhost:8065/api/v4/system/ping > /dev/null 2>&1); do sleep 2; done' || echo "Mattermost is starting. Access at http://localhost:8065"
+	@echo "Creating admin account if it doesn't exist..."
+	@$(MAKE) dev-create-admin || echo "Admin account already exists or creation failed"
 
-## Stops the Docker Compose development stack.
+## Stops the Podman Compose development stack.
 .PHONY: dev-down
 dev-down:
 	@echo "Stopping development environment..."
-	$(DOCKER_COMPOSE) down
+	$(PODMAN_COMPOSE) down
+
+## Creates the admin account if it doesn't exist.
+## Uses credentials from podman-compose.yml (admin/admin123/admin@example.com)
+## Also creates a default team and adds the admin user to it.
+.PHONY: dev-create-admin
+dev-create-admin:
+	@./scripts/dev-create-admin.sh
 
 ## Alias for dev-up
 .PHONY: dev-start
@@ -313,7 +352,7 @@ dev-start: dev-up
 .PHONY: dev-stop
 dev-stop: dev-down
 
-## Restarts the Docker Compose development stack.
+## Restarts the Podman Compose development stack.
 .PHONY: dev-restart
 dev-restart: dev-down dev-up
 
@@ -321,115 +360,80 @@ dev-restart: dev-down dev-up
 .PHONY: dev-clean
 dev-clean:
 	@echo "Cleaning development environment (removing containers, volumes, and data)..."
-	$(DOCKER_COMPOSE) down -v
-	rm -rf docker/data/* docker/config/*
+	$(PODMAN_COMPOSE) down -v
+	sudo rm -rf podman/data/* podman/config/*
 	@echo "Development environment cleaned. Run 'make dev-up' to start fresh."
 
 ## Views Mattermost server logs.
 .PHONY: dev-logs
 dev-logs:
-	$(DOCKER_COMPOSE) logs mattermost
+	$(PODMAN_COMPOSE) logs mattermost
 
 ## Tails Mattermost server logs in real-time.
 .PHONY: dev-logs-watch
 dev-logs-watch:
-	$(DOCKER_COMPOSE) logs -f mattermost
+	$(PODMAN_COMPOSE) logs -f mattermost
 
-## Builds and deploys the plugin to the Docker development stack.
+## Builds and deploys the plugin to the Podman development stack.
 .PHONY: dev-deploy
 dev-deploy: dist
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
-		exit 1; \
-	fi
-	@echo "Deploying plugin to development environment..."
-	@if [ -f docker/.env ]; then \
-		echo "Loading environment variables from docker/.env..."; \
-		set -a && . docker/.env && set +a; \
-	fi
-	@if [ -z "$$MM_ADMIN_TOKEN" ] && [ -z "$$MM_ADMIN_USERNAME" ]; then \
-		echo "Warning: MM_ADMIN_TOKEN or MM_ADMIN_USERNAME/MM_ADMIN_PASSWORD not set."; \
-		echo "Please set them in docker/.env or export them in your shell."; \
-		echo "See docker/env.example for an example."; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
-	./build/bin/pluginctl deploy $(PLUGIN_ID) dist/$(BUNDLE_NAME)
-	@echo "Plugin deployed. Run 'make dev-enable' to enable it, or enable via System Console."
+	@PLUGIN_ID=$(PLUGIN_ID) BUNDLE_NAME=dist/$(BUNDLE_NAME) ./scripts/dev-deploy.sh
 
 ## Opens a shell in the Mattermost container.
 .PHONY: dev-shell
 dev-shell:
-	$(DOCKER_COMPOSE) exec mattermost /bin/sh
+	$(PODMAN_COMPOSE) exec mattermost /bin/sh
 
-## Shows status of Docker Compose services.
+## Shows status of Podman Compose services.
 .PHONY: dev-status
 dev-status:
-	$(DOCKER_COMPOSE) ps
+	$(PODMAN_COMPOSE) ps
 
 ## Enables the plugin in the development environment.
 .PHONY: dev-enable
 dev-enable:
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
-		exit 1; \
-	fi
-	@if [ -f docker/.env ]; then \
-		set -a && . docker/.env && set +a; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	@./scripts/dev-check-container.sh
+	@MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
 	./build/bin/pluginctl enable $(PLUGIN_ID)
 
 ## Disables the plugin in the development environment.
 .PHONY: dev-disable
 dev-disable:
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
-		exit 1; \
-	fi
-	@if [ -f docker/.env ]; then \
-		set -a && . docker/.env && set +a; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	@./scripts/dev-check-container.sh
+	@MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
 	./build/bin/pluginctl disable $(PLUGIN_ID)
 
 ## Resets the plugin in the development environment (disables and re-enables).
 .PHONY: dev-reset
 dev-reset:
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
-		exit 1; \
-	fi
-	@if [ -f docker/.env ]; then \
-		set -a && . docker/.env && set +a; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	@./scripts/dev-check-container.sh
+	@MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
 	./build/bin/pluginctl reset $(PLUGIN_ID)
 
 ## Views plugin logs in the development environment.
 .PHONY: dev-plugin-logs
 dev-plugin-logs:
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
-		exit 1; \
-	fi
-	@if [ -f docker/.env ]; then \
-		set -a && . docker/.env && set +a; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	@./scripts/dev-check-container.sh
+	@MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
 	./build/bin/pluginctl logs $(PLUGIN_ID)
 
 ## Tails plugin logs in the development environment.
 .PHONY: dev-plugin-logs-watch
 dev-plugin-logs-watch:
-	@if ! $(DOCKER_COMPOSE) ps mattermost | grep -q "Up"; then \
-		echo "Error: Mattermost container is not running. Run 'make dev-up' first."; \
+	@./scripts/dev-check-container.sh
+	@MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
+	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
+
+## Pings the Mattermost healthcheck endpoint to verify server is responding.
+.PHONY: dev-check-ping
+dev-check-ping:
+	@echo "Checking Mattermost healthcheck endpoint..."
+	@if $(CURL) -f -s http://localhost:8065/api/v4/system/ping > /dev/null 2>&1; then \
+		echo "✓ Mattermost is responding (http://localhost:8065/api/v4/system/ping)"; \
+	else \
+		echo "✗ Mattermost is not responding. Is it running? (Try 'make dev-up')"; \
 		exit 1; \
 	fi
-	@if [ -f docker/.env ]; then \
-		set -a && . docker/.env && set +a; \
-	fi
-	MM_SERVICESETTINGS_SITEURL=http://localhost:8065 \
-	./build/bin/pluginctl logs-watch $(PLUGIN_ID)
 
 # Help documentation à la https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help:

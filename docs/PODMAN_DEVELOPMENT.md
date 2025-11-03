@@ -1,6 +1,6 @@
-# Docker Development Environment
+# Podman Development Environment
 
-This document describes how to use the Docker Compose-based development environment for testing the Mattermost Community Toolkit plugin locally.
+This document describes how to use the Podman Compose-based development environment for testing the Mattermost Community Toolkit plugin locally.
 
 ## Overview
 
@@ -8,13 +8,14 @@ The development environment provides a complete, isolated Mattermost instance wi
 
 ## Prerequisites
 
-- Docker and Docker Compose installed
+- Podman and Podman Compose installed
 - Make utility (standard on Linux/macOS)
-- Network access to pull Docker images
+- Network access to pull container images
 
 ## Quick Start
 
 1. **Start the development environment:**
+
    ```bash
    make dev-up
    ```
@@ -24,39 +25,47 @@ The development environment provides a complete, isolated Mattermost instance wi
 
 3. **First-time setup:**
    - Open http://localhost:8065 in your browser
-   - Create your admin account (or use the credentials from `docker/env.example`)
+   - Create your admin account (or use the credentials from `podman/env.example`)
    - Complete the initial setup wizard
 
 4. **Configure plugin deployment credentials:**
-   
+
    You need to set environment variables for plugin deployment. You can either:
-   
+
    **Option A: Use an admin token (recommended)**
+
    ```bash
    export MM_ADMIN_TOKEN="your-admin-token-here"
    ```
-   
+  
    To get a token:
+
    - Log into Mattermost
-   - Go to System Console > Integrations > Bot Accounts
-   - Create a personal access token for your user
-   
+   - Go to Menu > System Console > Integrations > Bot Accounts
+   - Choose to enable bot accounts
+   - Go to Menu > Integrations > Bot Accounts
+   - Add a Bot Account for the plugin (gives us a token to use for auth)
+      - Bot Account will need role: `system admin`
+
    **Option B: Use username/password**
+
    ```bash
    export MM_ADMIN_USERNAME="admin"
    export MM_ADMIN_PASSWORD="your-password"
    ```
 
 5. **Deploy the plugin:**
+
    ```bash
    make dev-deploy
    ```
 
 6. **Enable the plugin:**
+
    ```bash
    make dev-enable
    ```
-   
+
    Or enable it via System Console > Plugins > Community Toolkit > Enable
 
 7. **Test your plugin:**
@@ -68,7 +77,7 @@ The development environment provides a complete, isolated Mattermost instance wi
 
 ### Environment Management
 
-- **`make dev-up`** / **`make dev-start`** - Start the Docker Compose stack
+- **`make dev-up`** / **`make dev-start`** - Start the Podman Compose stack
   - Starts PostgreSQL and Mattermost containers
   - Waits for Mattermost to be ready
   - Data persists between restarts
@@ -96,7 +105,7 @@ The development environment provides a complete, isolated Mattermost instance wi
 - **`make dev-enable`** - Enable the plugin
   - Enables the plugin in the development environment
   - Verifies Mattermost container is running
-  - Loads credentials from `docker/.env` if present
+  - Loads credentials from `podman/.env` if present
 
 - **`make dev-disable`** - Disable the plugin
   - Disables the plugin in the development environment
@@ -137,19 +146,21 @@ The development environment provides a complete, isolated Mattermost instance wi
 
 ### Environment Variables
 
-The Docker Compose setup uses environment variables from:
-1. `docker/.env` file (if it exists)
+The Podman Compose setup uses environment variables from:
+
+1. `podman/.env` file (if it exists)
 2. Shell environment variables
-3. Default values in `docker-compose.yml`
+3. Default values in `podman-compose.yml`
 
 To customize the environment:
 
 1. Copy the example file:
+
    ```bash
-   cp docker/env.example docker/.env
+   cp podman/env.example podman/.env
    ```
 
-2. Edit `docker/.env` with your preferences:
+2. Edit `podman/.env` with your preferences:
    - Database credentials
    - Admin user credentials
    - Site URL (default: http://localhost:8065)
@@ -206,6 +217,14 @@ make dev-deploy
 make dev-enable
 ```
 
+### Troubleshooting Permission Issues
+
+The setup process automatically creates the required directories with proper permissions via the `dev-setup` target. However, if you encounter permission issues with the config or data directories, you can manually fix them:
+
+```bash
+chmod -R 777 podman/config podman/data/mattermost
+```
+
 ### Debugging Workflow
 
 ```bash
@@ -231,6 +250,7 @@ make dev-shell
 **Symptoms:** `make dev-up` completes but Mattermost isn't accessible
 
 **Solutions:**
+
 1. Check container status: `make dev-status`
 2. View logs: `make dev-logs`
 3. Check if port 8065 is already in use:
@@ -244,6 +264,7 @@ make dev-shell
 **Symptoms:** `make dev-deploy` fails with authentication error
 
 **Solutions:**
+
 1. Verify credentials are set:
    ```bash
    echo $MM_ADMIN_TOKEN
@@ -262,24 +283,26 @@ make dev-shell
 **Symptoms:** Mattermost logs show database connection errors
 
 **Solutions:**
+
 1. Check PostgreSQL container is running: `make dev-status`
 2. Restart the stack: `make dev-restart`
-3. If issues persist, try a clean start: `make dev-clean` then `make dev-up`
+3. If issues persist, try a clean start: `make dev-clean` then `make dev-start`
 
 ### Port Already in Use
 
-**Symptoms:** Docker Compose fails with "port already allocated"
+**Symptoms:** Podman Compose fails with "port already allocated"
 
 **Solutions:**
+
 1. Find what's using the port:
    ```bash
    lsof -i :8065
    ```
 2. Stop the conflicting service, or
-3. Modify `docker-compose.yml` to use a different port:
+3. Modify `podman-compose.yml` to use a different port:
    ```yaml
    ports:
-     - "8066:8065"  # Use 8066 instead of 8065
+     - "8066:8065" # Use 8066 instead of 8065
    ```
    Then update `MM_SERVICESETTINGS_SITEURL` accordingly
 
@@ -288,6 +311,7 @@ make dev-shell
 **Symptoms:** Plugin appears uploaded but doesn't activate
 
 **Solutions:**
+
 1. Check plugin compatibility with Mattermost version
 2. View logs for errors: `make dev-logs`
 3. Verify plugin was built correctly: `make dist`
@@ -302,19 +326,20 @@ make dev-shell
 **Symptoms:** Changes disappear after restart
 
 **Solutions:**
-1. Verify volumes are mounted: `docker volume ls`
-2. Check data directories exist: `ls -la docker/data/`
+
+1. Verify volumes are mounted: `podman volume ls`
+2. Check data directories exist: `ls -la podman/data/`
 3. Ensure you're using `dev-down` (not `dev-clean`) for normal stops
 
 ## File Structure
 
 ```
 .
-├── docker-compose.yml          # Docker Compose configuration
-├── docker/
+├── podman-compose.yml          # Podman Compose configuration
+├── podman/
 │   ├── env.example             # Example environment variables
 │   ├── .env                    # Local environment overrides (gitignored)
-│   ├── config/                  # Mattermost config files (gitignored)
+│   ├── config/                 # Mattermost config files (gitignored)
 │   └── data/                   # Persistent data (gitignored)
 │       ├── mattermost/         # Mattermost data and plugins
 │       └── postgres/           # PostgreSQL data
@@ -328,12 +353,13 @@ make dev-shell
 
 ## Integration with Existing Workflow
 
-The Docker development environment works alongside existing deployment methods:
+The Podman development environment works alongside existing deployment methods:
 
 - **`make deploy`** - Deploys to server configured via environment variables (works with any Mattermost instance)
-- **`make dev-deploy`** - Specifically deploys to the local Docker stack
+- **`make dev-deploy`** - Specifically deploys to the local Podman stack
 
-You can use either method depending on your needs. The Docker stack is ideal for:
+You can use either method depending on your needs. The Podman stack is ideal for:
+
 - Isolated testing
 - CI/CD pipelines
 - Reproducible test environments
@@ -343,13 +369,12 @@ You can use either method depending on your needs. The Docker stack is ideal for
 
 1. **Use `dev-down` for daily stops** - Preserves your test data and configuration
 2. **Use `dev-clean` sparingly** - Only when you need a completely fresh environment
-3. **Set up environment variables** - Create `docker/.env` for consistent configuration
+3. **Set up environment variables** - Create `podman/.env` for consistent configuration
 4. **Monitor logs during development** - Keep `make dev-logs-watch` running in a separate terminal
-5. **Version control** - Don't commit `docker/.env` or `docker/data/` (already in `.gitignore`)
+5. **Version control** - Don't commit `podman/.env` or `podman/data/` (already in `.gitignore`)
 
 ## Additional Resources
 
 - [Mattermost Plugin Development Documentation](https://developers.mattermost.com/integrate/plugins/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Podman Compose Documentation](https://github.com/containers/podman-compose)
 - [Mattermost Docker Hub](https://hub.docker.com/r/mattermost/mattermost-team-edition)
-

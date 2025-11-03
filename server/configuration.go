@@ -39,6 +39,7 @@ type configuration struct {
 	ExcludeBots            bool
 	RejectPosts            bool
 	WarningMessage         string `json:"WarningMessage"`
+	AdminUsername          string `json:"AdminUsername"`
 }
 
 //go:embed bad-domains.txt
@@ -130,11 +131,32 @@ func (p *Plugin) OnConfigurationChange() error {
 		p.cache = NewLRUCache(50)
 	}
 
-	p.badWordsRegex = splitWordListToRegex(configuration.BadWordsList)
-	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
-	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
+	// Compile regex patterns from word lists
+	badWordsRegex, err := splitWordListToRegex(configuration.BadWordsList)
+	if err != nil {
+		p.API.LogError(fmt.Sprintf("Invalid regex in BadWordsList: %v", err))
+		return errors.Wrap(err, "failed to compile BadWordsList regex")
+	}
+	p.badWordsRegex = badWordsRegex
 
-	p.setupBadDomainList()
+	// Use template without word boundaries for domains to support regex patterns
+	badDomainsRegex, err := splitWordListToRegex(configuration.BadDomainsList, `(?mi)(%s)`)
+	if err != nil {
+		p.API.LogError(fmt.Sprintf("Invalid regex in BadDomainsList: %v", err))
+		return errors.Wrap(err, "failed to compile BadDomainsList regex")
+	}
+	p.badDomainsRegex = badDomainsRegex
+
+	badUsernamesRegex, err := splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
+	if err != nil {
+		p.API.LogError(fmt.Sprintf("Invalid regex in BadUsernamesList: %v", err))
+		return errors.Wrap(err, "failed to compile BadUsernamesList regex")
+	}
+	p.badUsernamesRegex = badUsernamesRegex
+
+	if err := p.setupBadDomainList(); err != nil {
+		return errors.Wrap(err, "failed to setup bad domain list")
+	}
 
 	return nil
 }
@@ -169,10 +191,10 @@ func jsonArrayToStringSlice(jsonArray string) (*[]string, error) {
 	return &result, nil
 }
 
-func splitWordListToRegex(wordList string, regexTemplateOptional ...string) *regexp.Regexp {
+func splitWordListToRegex(wordList string, regexTemplateOptional ...string) (*regexp.Regexp, error) {
 	// If there's no list of words, don't make them into a regex
 	if len(wordList) < 1 {
-		return nil
+		return nil, nil
 	}
 
 	// Choose the regex template
@@ -185,13 +207,18 @@ func splitWordListToRegex(wordList string, regexTemplateOptional ...string) *reg
 	regexString := wordListToRegex(wordList, regexTemplate)
 	regex, err := regexp.Compile(regexString)
 	if err != nil {
-		panic(fmt.Errorf("unable to split wordlist to regex: %v", err))
+		return nil, errors.Wrap(err, "unable to compile regex from wordlist")
 	}
-	return regex
+	return regex, nil
 }
 
 func wordListToRegex(wordList string, regexTemplate string) string {
 	split := strings.Split(wordList, ",")
+
+	// Trim whitespace from each item
+	for i := range split {
+		split[i] = strings.TrimSpace(split[i])
+	}
 
 	// Sorting by length so that longer words come first
 	sort.Slice(split, func(i, j int) bool { return len(split[i]) > len(split[j]) })

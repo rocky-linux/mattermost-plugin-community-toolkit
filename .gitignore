@@ -1,6 +1,6 @@
 dist
 vendor/
 bin/
-docker/data/
-docker/config/
+podman/**
+!podman/env.example
 .env

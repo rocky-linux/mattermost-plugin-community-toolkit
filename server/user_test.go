@@ -15,8 +15,7 @@ func TestNewLRUCache(t *testing.T) {
 		require.NotNil(t, cache)
 		assert.Equal(t, 50, cache.capacity)
 		assert.NotNil(t, cache.cache)
-		assert.NotNil(t, cache.lruList)
-		assert.Equal(t, 0, cache.lruList.Len())
+		assert.Equal(t, 0, len(cache.cache))
 	})
 
 	t.Run("creates cache with small capacity", func(t *testing.T) {
@@ -222,8 +221,7 @@ func TestLRUCacheConcurrency(t *testing.T) {
 		wg.Wait()
 
 		// Verify cache state is consistent
-		assert.Equal(t, cache.lruList.Len(), 100)
-		assert.Equal(t, cache.lruList.Len(), len(cache.cache))
+		assert.Equal(t, 100, len(cache.cache))
 	})
 
 	t.Run("handles mixed concurrent operations", func(t *testing.T) {
@@ -260,8 +258,7 @@ func TestLRUCacheConcurrency(t *testing.T) {
 		wg.Wait()
 
 		// Verify cache state is consistent
-		assert.Equal(t, cache.lruList.Len(), 50)
-		assert.Equal(t, cache.lruList.Len(), len(cache.cache))
+		assert.Equal(t, 50, len(cache.cache))
 	})
 }
 
@@ -315,7 +312,6 @@ func TestLRUCacheMemoryBehavior(t *testing.T) {
 		}
 
 		// Verify cache doesn't exceed capacity
-		assert.Equal(t, capacity, cache.lruList.Len())
 		assert.Equal(t, capacity, len(cache.cache))
 	})
 }

@@ -28,13 +28,13 @@ func TestWordListToRegex(t *testing.T) {
 		},
 	}
 
-	t.Run("Build In double Regex", func(t *testing.T) {
+	t.Run("Build regex with duplicate words using default template", func(t *testing.T) {
 		regexStr := wordListToRegex(p2.getConfiguration().BadWordsList, defaultRegexTemplate)
 
 		assert.Equal(t, regexStr, `(?mi)\b(abc def|abc)\b`)
 	})
 
-	t.Run("Build In double Regex", func(t *testing.T) {
+	t.Run("Build regex with duplicate words using custom template", func(t *testing.T) {
 		regexStr := wordListToRegex(p2.getConfiguration().BadWordsList, `(?mi)^(%s)$`)
 
 		assert.Equal(t, regexStr, `(?mi)^(abc def|abc)$`)
@@ -65,7 +65,7 @@ func TestOnConfigurationChange(t *testing.T) {
 					cfg.BadWordsList = "test,word"
 					cfg.BadDomainsList = "bad.com"
 					cfg.BadUsernamesList = "baduser"
-					cfg.CensorCharacter = "*"
+					cfg.CensorCharacter = "\\*"
 					cfg.RejectPosts = true
 					cfg.ExcludeBots = true
 					cfg.BlockNewUserPM = true
@@ -93,7 +93,7 @@ func TestOnConfigurationChange(t *testing.T) {
 		assert.Equal(t, "test,word", cfg.BadWordsList)
 		assert.Equal(t, "bad.com", cfg.BadDomainsList)
 		assert.Equal(t, "baduser", cfg.BadUsernamesList)
-		assert.Equal(t, "*", cfg.CensorCharacter)
+		assert.Equal(t, "\\*", cfg.CensorCharacter)
 		assert.True(t, cfg.RejectPosts)
 		assert.True(t, cfg.ExcludeBots)
 		assert.True(t, cfg.BlockNewUserPM)
@@ -274,6 +274,89 @@ func TestOnConfigurationChange(t *testing.T) {
 		assert.Equal(t, "original", originalConfig.BadWordsList)
 		assert.Equal(t, "*", originalConfig.CensorCharacter)
 	})
+
+	t.Run("returns error for invalid duration config", func(t *testing.T) {
+		p := Plugin{}
+
+		mockAPI := &MockConfigAPI{
+			LoadPluginConfigurationFunc: func(dest interface{}) error {
+				if cfg, ok := dest.(*configuration); ok {
+					cfg.BlockNewUserPMTime = "invalid-duration"
+				}
+				return nil
+			},
+		}
+		p.SetAPI(mockAPI)
+
+		err := p.OnConfigurationChange()
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid duration format")
+	})
+}
+
+func TestJsonArrayToStringSlice(t *testing.T) {
+	t.Run("parses valid JSON array", func(t *testing.T) {
+		jsonArray := `["domain1.com", "domain2.com", "domain3.com"]`
+		result, err := jsonArrayToStringSlice(jsonArray)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 3, len(*result))
+		assert.Equal(t, "domain1.com", (*result)[0])
+		assert.Equal(t, "domain2.com", (*result)[1])
+		assert.Equal(t, "domain3.com", (*result)[2])
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		invalidJSON := `["domain1.com", "domain2.com"` // Missing closing bracket
+		result, err := jsonArrayToStringSlice(invalidJSON)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "unexpected")
+	})
+
+	t.Run("returns error for non-array JSON", func(t *testing.T) {
+		nonArrayJSON := `{"domains": ["domain1.com"]}` // Object instead of array
+		result, err := jsonArrayToStringSlice(nonArrayJSON)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("parses empty array", func(t *testing.T) {
+		emptyArray := `[]`
+		result, err := jsonArrayToStringSlice(emptyArray)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 0, len(*result))
+	})
+
+	t.Run("returns error for array with non-string values", func(t *testing.T) {
+		// This should fail because JSON contains non-string values
+		mixedArray := `["domain1.com", 123, "domain2.com"]`
+		result, err := jsonArrayToStringSlice(mixedArray)
+
+		// JSON unmarshal will fail when trying to unmarshal number into string slice
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "cannot unmarshal")
+	})
+}
+
+func TestSetupBadDomainList(t *testing.T) {
+	t.Run("successfully sets up bad domain list from embedded file", func(t *testing.T) {
+		p := Plugin{}
+
+		err := p.setupBadDomainList()
+
+		// This should succeed because the embedded file is valid JSON
+		assert.NoError(t, err)
+		assert.NotNil(t, p.badDomainsList)
+		assert.Greater(t, len(*p.badDomainsList), 0)
+	})
 }
 
 func TestSetConfiguration(t *testing.T) {
@@ -375,8 +458,9 @@ func TestClone(t *testing.T) {
 
 func TestSplitWordListToRegex(t *testing.T) {
 	t.Run("creates regex from word list", func(t *testing.T) {
-		regex := splitWordListToRegex("word1,word2,word3")
+		regex, err := splitWordListToRegex("word1,word2,word3")
 
+		assert.NoError(t, err)
 		assert.NotNil(t, regex)
 		assert.True(t, regex.MatchString("contains word1 here"))
 		assert.True(t, regex.MatchString("word2"))
@@ -385,14 +469,16 @@ func TestSplitWordListToRegex(t *testing.T) {
 	})
 
 	t.Run("returns nil for empty list", func(t *testing.T) {
-		regex := splitWordListToRegex("")
+		regex, err := splitWordListToRegex("")
 
+		assert.NoError(t, err)
 		assert.Nil(t, regex)
 	})
 
 	t.Run("uses custom template", func(t *testing.T) {
-		regex := splitWordListToRegex("test", `^(%s)$`)
+		regex, err := splitWordListToRegex("test", `^(%s)$`)
 
+		assert.NoError(t, err)
 		assert.NotNil(t, regex)
 		assert.True(t, regex.MatchString("test"))
 		assert.False(t, regex.MatchString("test123"))
@@ -400,12 +486,22 @@ func TestSplitWordListToRegex(t *testing.T) {
 	})
 
 	t.Run("sorts by length descending", func(t *testing.T) {
-		regex := splitWordListToRegex("a,abc,ab")
+		regex, err := splitWordListToRegex("a,abc,ab")
 
+		assert.NoError(t, err)
 		// The regex should be ordered as: abc|ab|a
 		assert.NotNil(t, regex)
 		// This ensures longest match first
 		match := regex.FindString("abc")
 		assert.Equal(t, "abc", match)
+	})
+
+	t.Run("returns error for invalid regex pattern", func(t *testing.T) {
+		// Use a malformed regex pattern
+		regex, err := splitWordListToRegex("test", `(?P<invalid`)
+
+		assert.Error(t, err)
+		assert.Nil(t, regex)
+		assert.Contains(t, err.Error(), "unable to compile regex")
 	})
 }

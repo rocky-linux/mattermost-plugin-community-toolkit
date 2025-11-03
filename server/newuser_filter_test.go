@@ -13,9 +13,9 @@ func TestContainsLinks(t *testing.T) {
 	p := &Plugin{}
 
 	tests := []struct {
-		name      string
-		post      *model.Post
-		hasLinks  bool
+		name     string
+		post     *model.Post
+		hasLinks bool
 	}{
 		{
 			name: "http URL in message",
@@ -338,8 +338,141 @@ func TestContainsImages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Use the plugin instance from outer scope
+			// For FileIds tests, we need a mock API, but existing tests don't use FileIds
+			// so we can just use the existing p
 			result := p.containsImages(tt.post)
 			assert.Equal(t, tt.hasImages, result, "containsImages() should return %v for %s", tt.hasImages, tt.name)
+		})
+	}
+}
+
+// TestContainsImagesWithFileIds verifies FileIds detection (real-world upload scenario)
+func TestContainsImagesWithFileIds(t *testing.T) {
+	p := &Plugin{}
+
+	mockAPI := &MockAPI{
+		GetFileInfoFunc: func(fileID string) (*model.FileInfo, *model.AppError) {
+			// Return image file info for image files
+			if fileID == "image-file-id" {
+				return &model.FileInfo{
+					Id:        fileID,
+					Extension: ".png",
+					Name:      "photo.png",
+				}, nil
+			}
+			// Return non-image for other files
+			if fileID == "pdf-file-id" {
+				return &model.FileInfo{
+					Id:        fileID,
+					Extension: ".pdf",
+					Name:      "document.pdf",
+				}, nil
+			}
+			return nil, &model.AppError{Message: "file not found"}
+		},
+	}
+	p.SetAPI(mockAPI)
+
+	tests := []struct {
+		name      string
+		post      *model.Post
+		hasImages bool
+	}{
+		{
+			name: "post with FileIds containing image file",
+			post: &model.Post{
+				Message: "Photo upload",
+				FileIds: []string{"image-file-id"},
+				// Metadata.Files is empty (realistic MessageWillBePosted scenario)
+			},
+			hasImages: true,
+		},
+		{
+			name: "post with FileIds containing non-image file",
+			post: &model.Post{
+				Message: "Document upload",
+				FileIds: []string{"pdf-file-id"},
+			},
+			hasImages: false,
+		},
+		{
+			name: "post with FileIds containing both image and non-image",
+			post: &model.Post{
+				Message: "Mixed upload",
+				FileIds: []string{"pdf-file-id", "image-file-id"},
+			},
+			hasImages: true, // Should detect image
+		},
+		{
+			name: "post with FileIds but GetFileInfo fails",
+			post: &model.Post{
+				Message: "Unknown file",
+				FileIds: []string{"unknown-file-id"},
+			},
+			hasImages: false, // Should gracefully handle error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := p.containsImages(tt.post)
+			assert.Equal(t, tt.hasImages, result, "containsImages() should return %v for %s", tt.hasImages, tt.name)
+		})
+	}
+}
+
+// TestIsImageExtension verifies the image extension detection helper
+func TestIsImageExtension(t *testing.T) {
+	p := &Plugin{}
+
+	tests := []struct {
+		name      string
+		extension string
+		expected  bool
+	}{
+		// Common image formats
+		{name: "jpg extension", extension: ".jpg", expected: true},
+		{name: "jpeg extension", extension: ".jpeg", expected: true},
+		{name: "png extension", extension: ".png", expected: true},
+		{name: "gif extension", extension: ".gif", expected: true},
+		{name: "bmp extension", extension: ".bmp", expected: true},
+		{name: "webp extension", extension: ".webp", expected: true},
+
+		// Modern image formats
+		{name: "svg extension", extension: ".svg", expected: true},
+		{name: "tiff extension", extension: ".tiff", expected: true},
+		{name: "tif extension", extension: ".tif", expected: true},
+		{name: "ico extension", extension: ".ico", expected: true},
+		{name: "heic extension", extension: ".heic", expected: true},
+		{name: "heif extension", extension: ".heif", expected: true},
+		{name: "avif extension", extension: ".avif", expected: true},
+
+		// Case variations
+		{name: "uppercase JPG", extension: ".JPG", expected: true},
+		{name: "mixed case JpG", extension: ".JpG", expected: true},
+		{name: "uppercase PNG", extension: ".PNG", expected: true},
+
+		// Without leading dot
+		{name: "jpg without dot", extension: "jpg", expected: true},
+		{name: "png without dot", extension: "png", expected: true},
+
+		// Non-image formats
+		{name: "pdf extension", extension: ".pdf", expected: false},
+		{name: "txt extension", extension: ".txt", expected: false},
+		{name: "doc extension", extension: ".doc", expected: false},
+		{name: "zip extension", extension: ".zip", expected: false},
+		{name: "mp4 extension", extension: ".mp4", expected: false},
+
+		// Edge cases
+		{name: "empty extension", extension: "", expected: false},
+		{name: "unknown extension", extension: ".unknown", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := p.isImageExtension(tt.extension)
+			assert.Equal(t, tt.expected, result, "isImageExtension(%q) should return %v", tt.extension, tt.expected)
 		})
 	}
 }
@@ -349,10 +482,10 @@ func TestIsUserTooNew(t *testing.T) {
 	p := &Plugin{}
 
 	now := time.Now()
-	newUserCreateAt := now.Unix() * 1000                          // Created now
-	oldUserCreateAt := now.Add(-48 * time.Hour).Unix() * 1000     // Created 48 hours ago
-	edgeCaseCreateAt := now.Add(-24 * time.Hour).Unix() * 1000    // Created exactly 24 hours ago
-	almostOldCreateAt := now.Add(-23*time.Hour - 59*time.Minute).Unix() * 1000 // Just under 24h
+	newUserCreateAt := now.Unix() * 1000                                     // Created now
+	oldUserCreateAt := now.Add(-48*time.Hour).Unix() * 1000                  // Created 48 hours ago
+	edgeCaseCreateAt := now.Add(-24*time.Hour).Unix() * 1000                 // Created exactly 24 hours ago
+	almostOldCreateAt := now.Add(-23*time.Hour-59*time.Minute).Unix() * 1000 // Just under 24h
 
 	tests := []struct {
 		name          string
@@ -457,7 +590,7 @@ func TestIsUserTooNew(t *testing.T) {
 			name: "short 1h blocking period",
 			user: &model.User{
 				Id:       model.NewId(),
-				CreateAt: now.Add(-30 * time.Minute).Unix() * 1000,
+				CreateAt: now.Add(-30*time.Minute).Unix() * 1000,
 			},
 			blockDuration: "1h",
 			contentType:   "direct messages",
@@ -468,7 +601,7 @@ func TestIsUserTooNew(t *testing.T) {
 			name: "long 7d blocking period with new user",
 			user: &model.User{
 				Id:       model.NewId(),
-				CreateAt: now.Add(-3 * 24 * time.Hour).Unix() * 1000, // 3 days old
+				CreateAt: now.Add(-3*24*time.Hour).Unix() * 1000, // 3 days old
 			},
 			blockDuration: "168h", // 7 days
 			contentType:   "images",
@@ -479,7 +612,7 @@ func TestIsUserTooNew(t *testing.T) {
 			name: "long 7d blocking period with old user",
 			user: &model.User{
 				Id:       model.NewId(),
-				CreateAt: now.Add(-8 * 24 * time.Hour).Unix() * 1000, // 8 days old
+				CreateAt: now.Add(-8*24*time.Hour).Unix() * 1000, // 8 days old
 			},
 			blockDuration: "168h", // 7 days
 			contentType:   "images",
@@ -490,11 +623,22 @@ func TestIsUserTooNew(t *testing.T) {
 			name: "complex duration format 12h30m",
 			user: &model.User{
 				Id:       model.NewId(),
-				CreateAt: now.Add(-10 * time.Hour).Unix() * 1000, // 10 hours old
+				CreateAt: now.Add(-10*time.Hour).Unix() * 1000, // 10 hours old
 			},
 			blockDuration: "12h30m",
 			contentType:   "links",
 			expectTooNew:  true,
+			expectError:   false,
+		},
+		{
+			name: "user 25 hours old should not be blocked with 24h duration",
+			user: &model.User{
+				Id:       model.NewId(),
+				CreateAt: now.Add(-25*time.Hour).Unix() * 1000, // 25 hours old
+			},
+			blockDuration: "24h",
+			contentType:   "direct messages",
+			expectTooNew:  false, // 25 hours old > 24h duration, should be allowed
 			expectError:   false,
 		},
 	}

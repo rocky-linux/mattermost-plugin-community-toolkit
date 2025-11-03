@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mattermost/mattermost/server/public/model"
 )
@@ -11,8 +12,15 @@ func (p *Plugin) checkBadEmail(user *model.User) error {
 	if p.configuration.BuiltinBadDomains && EndsWith(*p.badDomainsList, email) {
 		return fmt.Errorf("email domain is in builtin list of bad domains: %v", email)
 	}
-	if p.badDomainsRegex != nil && p.badDomainsRegex.MatchString(email) {
-		return fmt.Errorf("email domain matches moderations list: %v", email)
+	if p.badDomainsRegex != nil {
+		// Extract domain from email for regex matching
+		parts := strings.SplitN(email, "@", 2)
+		if len(parts) == 2 {
+			domain := parts[1]
+			if p.badDomainsRegex.MatchString(domain) {
+				return fmt.Errorf("email domain matches moderations list: %v", email)
+			}
+		}
 	}
 	return nil
 }
