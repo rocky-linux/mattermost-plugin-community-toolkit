@@ -37,7 +37,7 @@ This document is a primer for developing in this repository.
    ```
 
 4. **Mattermost Server** (9.3.0+)
-   - Either local installation or Docker container
+   - Either local installation or Podman container
    - Admin access for plugin management
 
 5. **Git**
@@ -58,7 +58,7 @@ This document is a primer for developing in this repository.
    ```
 
    This installs:
-   - `golangci-lint v2.5.0` - Go code linter
+   - `golangci-lint v2.6.0` - Go code linter
    - `gotestsum v1.13.0` - Enhanced test runner
 
 3. **Configure plugin deployment (optional - for local testing):**
@@ -111,60 +111,60 @@ The project uses GNU Make for build automation. Here are all available commands:
 
 ### Primary Build Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make all` | Complete build pipeline: check-style → test → dist | Use before committing |
-| `make dist` | Build production plugin bundle | Creates `dist/mattermost-community-toolkit-*.tar.gz` |
-| `make server` | Build server binaries only | Builds for linux-amd64 and linux-arm64 |
-| `make webapp` | Build webapp (currently disabled) | N/A - webapp is WIP |
-| `make bundle` | Create distribution tarball | Packages built artifacts |
-| `make clean` | Remove all build artifacts | Clean slate rebuild |
+| Command       | Description                                        | Usage                                                |
+| ------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| `make all`    | Complete build pipeline: check-style → test → dist | Use before committing                                |
+| `make dist`   | Build production plugin bundle                     | Creates `dist/mattermost-community-toolkit-*.tar.gz` |
+| `make server` | Build server binaries only                         | Builds for linux-amd64 and linux-arm64               |
+| `make webapp` | Build webapp (currently disabled)                  | N/A - webapp is WIP                                  |
+| `make bundle` | Create distribution tarball                        | Packages built artifacts                             |
+| `make clean`  | Remove all build artifacts                         | Clean slate rebuild                                  |
 
 ### Development Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make apply` | Propagate manifest changes | Run after editing `plugin.json` |
-| `make deploy` | Build and install to server | Requires configured `pluginctl` |
-| `make watch` | Auto-rebuild on file changes | For webapp development |
-| `make deploy-from-watch` | Deploy watched changes | Use with `make watch` |
+| Command                  | Description                  | Usage                           |
+| ------------------------ | ---------------------------- | ------------------------------- |
+| `make apply`             | Propagate manifest changes   | Run after editing `plugin.json` |
+| `make deploy`            | Build and install to server  | Requires configured `pluginctl` |
+| `make watch`             | Auto-rebuild on file changes | For webapp development          |
+| `make deploy-from-watch` | Deploy watched changes       | Use with `make watch`           |
 
 ### Testing Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make test` | Run all tests with race detection | Standard test run |
-| `make test-ci` | CI-optimized test with JUnit output | For CI pipelines |
-| `make coverage` | Generate test coverage report | Opens HTML report in browser |
-| `make check-style` | Run linters (Go + JS) | Must pass before commit |
+| Command            | Description                         | Usage                        |
+| ------------------ | ----------------------------------- | ---------------------------- |
+| `make test`        | Run all tests with race detection   | Standard test run            |
+| `make test-ci`     | CI-optimized test with JUnit output | For CI pipelines             |
+| `make coverage`    | Generate test coverage report       | Opens HTML report in browser |
+| `make check-style` | Run linters (Go + JS)               | Must pass before commit      |
 
 ### Plugin Management Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make enable` | Enable the plugin | After deployment |
-| `make disable` | Disable the plugin | For testing |
-| `make reset` | Restart plugin (disable + enable) | Quick restart |
-| `make kill` | Force kill plugin process | Emergency stop |
-| `make logs` | View plugin logs | Debugging |
-| `make logs-watch` | Tail plugin logs | Real-time monitoring |
+| Command           | Description                       | Usage                |
+| ----------------- | --------------------------------- | -------------------- |
+| `make enable`     | Enable the plugin                 | After deployment     |
+| `make disable`    | Disable the plugin                | For testing          |
+| `make reset`      | Restart plugin (disable + enable) | Quick restart        |
+| `make kill`       | Force kill plugin process         | Emergency stop       |
+| `make logs`       | View plugin logs                  | Debugging            |
+| `make logs-watch` | Tail plugin logs                  | Real-time monitoring |
 
 ### Debugging Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make attach` | Attach dlv debugger | Interactive debugging |
-| `make attach-headless` | Headless dlv on port 2346 | Remote debugging |
-| `make detach` | Detach debugger | Stop debugging |
-| `make setup-attach` | Find plugin PID | Internal use |
+| Command                | Description               | Usage                 |
+| ---------------------- | ------------------------- | --------------------- |
+| `make attach`          | Attach dlv debugger       | Interactive debugging |
+| `make attach-headless` | Headless dlv on port 2346 | Remote debugging      |
+| `make detach`          | Detach debugger           | Stop debugging        |
+| `make setup-attach`    | Find plugin PID           | Internal use          |
 
 ### Utility Commands
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `make install-go-tools` | Install required Go tools | First-time setup |
-| `make i18n-extract` | Extract translatable strings | For localization |
-| `make help` | Show all available commands | Quick reference |
+| Command                 | Description                  | Usage            |
+| ----------------------- | ---------------------------- | ---------------- |
+| `make install-go-tools` | Install required Go tools    | First-time setup |
+| `make i18n-extract`     | Extract translatable strings | For localization |
+| `make help`             | Show all available commands  | Quick reference  |
 
 ### Environment Variables
 
@@ -268,7 +268,7 @@ goimports -w -local github.com/rocky-linux/mattermost-plugin-community-toolkit s
 
 ### Linting Rules
 
-We use `golangci-lint v2.5.0+` with linting rules available in the file `.golangci.yml`
+We use `golangci-lint v2.6.0+` with linting rules configured in `.golangci.yml`
 
 ## Debugging
 
@@ -308,7 +308,7 @@ We use `golangci-lint v2.5.0+` with linting rules available in the file `.golang
 
 ## Additional Resources
 
-- [Plugin Architecture Overview](.local/ARCHITECTURE_OVERVIEW.md)
 - [Mattermost Plugin Developer Docs](https://developers.mattermost.com/integrate/plugins/)
 - [Go Documentation](https://go.dev/doc/)
-- [Original Repository](https://github.com/mattermost/mattermost-plugin-profanity-filter)
+- [Podman Development Environment](docs/PODMAN_DEVELOPMENT.md)
+- [New User Moderation Features](docs/NEW_USER_MODERATION.md)

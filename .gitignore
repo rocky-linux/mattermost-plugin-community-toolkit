@@ -1,3 +1,6 @@
 dist
 vendor/
 bin/
+podman/**
+!podman/env.example
+.env

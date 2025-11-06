@@ -19,7 +19,7 @@ const manifestStr = `
   "homepage_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit",
   "support_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit/issues",
   "release_notes_url": "https://github.com/rocky-linux/mattermost-plugin-community-toolkit/releases/tag/v2.0.0",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "min_server_version": "9.3.0",
   "server": {
     "executables": {
@@ -65,8 +65,8 @@ const manifestStr = `
         "display_name": "Censor Character:",
         "type": "text",
         "help_text": "The character(s) to use to censor profanity. The letters of the censored word will be replaced with this character. Note that markdown will be interpreted. You can escape markdown character with a backslash. For using ` + "`" + `*` + "`" + ` you type ` + "`" + `\\*` + "`" + `.",
-        "placeholder": "E.g.,. *",
-        "default": "*",
+        "placeholder": "E.g.,. \\*",
+        "default": "\\*",
         "hosting": ""
       },
       {
@@ -82,7 +82,43 @@ const manifestStr = `
         "key": "BlockNewUserPMTime",
         "display_name": "Block New User PMs Time:",
         "type": "text",
-        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m))",
+        "help_text": "How long to block PMs for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
+        "placeholder": "",
+        "default": "24h",
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserLinks",
+        "display_name": "Block New User Links:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from posting links for some time (see BlockNewUserLinksTime)",
+        "placeholder": "",
+        "default": null,
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserLinksTime",
+        "display_name": "Block New User Links Time:",
+        "type": "text",
+        "help_text": "How long to block link posts for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
+        "placeholder": "",
+        "default": "24h",
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserImages",
+        "display_name": "Block New User Images:",
+        "type": "bool",
+        "help_text": "Configure whether to block new users from posting images for some time (see BlockNewUserImagesTime)",
+        "placeholder": "",
+        "default": null,
+        "hosting": ""
+      },
+      {
+        "key": "BlockNewUserImagesTime",
+        "display_name": "Block New User Images Time:",
+        "type": "text",
+        "help_text": "How long to block image posts for (duration (e.g., 24h, or 12h30m)). Use -1 to enable the filter indefinitely.",
         "placeholder": "",
         "default": "24h",
         "hosting": ""

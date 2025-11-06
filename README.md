@@ -6,19 +6,19 @@ This plugin allows you to manage multiple settings relating to preventing spam a
 
 The plugin has the following features:
 
-* Censor/filter posts on the server (including during editing) to either reject or censor unwanted words (e.g., profanity)
-    * Words can be replaced with a series of characters (e.g., "\*"), or rejected outright with a message to the user
-* Automatically deactivate users (cancel registration) if their username matches list of unwanted names
-* Automatically deactivate users (cancel registration) if their email matches list of unwanted domains/addresses
-* Prevent new users from sending direct messages to other users for some time period
+- Censor/filter posts on the server (including during editing) to either reject or censor unwanted words (e.g., profanity)
+  - Words can be replaced with a series of characters (e.g., "\*"), or rejected outright with a message to the user
+- Automatically deactivate users (cancel registration) if their username matches list of unwanted names
+- Automatically deactivate users (cancel registration) if their email matches list of unwanted domains/addresses
+- Prevent new users from sending direct messages to other users for some time period
 
 In the future, this plugin will:
 
-* Send notifications to a centralized channel of moderation actions taken
-* Allow moderators to restore accounts, perform inquiries on users, see the history of the account and its changes
-* Grant "trust" levels to users based on the account status and optional moderator input
-    * e.g., allow accounts in a certain LDAP group to bypass checks
-* Be a hub for all community operations activities--moderation and otherwise
+- Send notifications to a centralized channel of moderation actions taken
+- Allow moderators to restore accounts, perform inquiries on users, see the history of the account and its changes
+- Grant "trust" levels to users based on the account status and optional moderator input
+  - e.g., allow accounts in a certain LDAP group to bypass checks
+- Be a hub for all community operations activities--moderation and otherwise
 
 **Supported Mattermost Server Versions: 9.3+**
 
@@ -45,6 +45,6 @@ In addition to the Bad Word List, a Bad Domain and Bad Username list is availabl
 
 Want to help improve the Mattermost Community Toolkit Plugin? Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on:
 
-* Development environment setup
-* Build system and make commands
-* Debugging and troubleshooting
+- Development environment setup
+- Build system and make commands
+- Debugging and troubleshooting

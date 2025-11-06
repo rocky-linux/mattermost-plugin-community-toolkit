@@ -1,9 +1,13 @@
+// Package main provides a build tool for managing Mattermost plugin manifests.
+// It handles manifest discovery, version generation, and code generation for
+// server and webapp components.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -96,11 +100,13 @@ func findManifest() (*model.Manifest, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find manifest in current working directory")
 	}
+	// Sanitize the file path to prevent path traversal attacks
+	manifestFilePath = filepath.Clean(manifestFilePath)
 	manifestFile, err := os.Open(manifestFilePath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open %s", manifestFilePath)
 	}
-	defer manifestFile.Close()
+	defer func() { _ = manifestFile.Close() }()
 
 	// Re-decode the manifest, disallowing unknown fields. When we write the manifest back out,
 	// we don't want to accidentally clobber anything we won't preserve.
