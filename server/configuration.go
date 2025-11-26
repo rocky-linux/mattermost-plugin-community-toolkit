@@ -1,3 +1,6 @@
+// Package main implements the Mattermost Community Toolkit plugin,
+// providing comprehensive community moderation tools including post filtering,
+// user registration validation, and new user restrictions.
 package main
 
 import (
@@ -118,7 +121,9 @@ func (p *Plugin) OnConfigurationChange() error {
 	p.badDomainsRegex = splitWordListToRegex(configuration.BadDomainsList)
 	p.badUsernamesRegex = splitWordListToRegex(configuration.BadUsernamesList, `(?mi)(%s)`)
 
-	p.setupBadDomainList()
+	if err := p.setupBadDomainList(); err != nil {
+		return errors.Wrap(err, "failed to setup bad domain list")
+	}
 
 	return nil
 }
