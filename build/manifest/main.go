@@ -1,3 +1,6 @@
+// Package main provides a build tool for managing the plugin manifest file.
+// It supports commands to extract plugin metadata, apply manifest changes,
+// and prepare the manifest for distribution.
 package main
 
 import (
@@ -96,11 +99,11 @@ func findManifest() (*model.Manifest, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find manifest in current working directory")
 	}
-	manifestFile, err := os.Open(manifestFilePath)
+	manifestFile, err := os.Open(manifestFilePath) //nolint:gosec
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open %s", manifestFilePath)
 	}
-	defer manifestFile.Close()
+	defer func() { _ = manifestFile.Close() }()
 
 	// Re-decode the manifest, disallowing unknown fields. When we write the manifest back out,
 	// we don't want to accidentally clobber anything we won't preserve.

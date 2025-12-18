@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
@@ -125,11 +126,23 @@ func getUnixClient(socketPath string) (*model.Client4, bool) {
 // deploy attempts to upload and enable a plugin via the Client4 API.
 // It will fail if plugin uploads are disabled.
 func deploy(ctx context.Context, client *model.Client4, pluginID, bundlePath string) error {
+	// fixing go linting error around use of a file path directly from input args
+	bundlePath = filepath.Clean(bundlePath)
+
+	// Validate the file exists and is a regular file (pt2 of linting fix)
+	fileInfo, err := os.Stat(bundlePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat %s: %w", bundlePath, err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("bundle path must be a regular file: %s", bundlePath)
+	}
+
 	pluginBundle, err := os.Open(bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %w", bundlePath, err)
 	}
-	defer pluginBundle.Close()
+	defer func() { _ = pluginBundle.Close() }()
 
 	log.Print("Uploading plugin via API.")
 	_, _, err = client.UploadPluginForced(ctx, pluginBundle)
