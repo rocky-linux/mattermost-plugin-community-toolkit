@@ -334,8 +334,7 @@ dev-up: dev-setup
 dev-down:
 	@echo "Stopping development environment and removing volumes..."
 	$(PODMAN_COMPOSE) down -v
-	sudo rm -rf podman/data/* podman/config/*
-
+	
 ## Creates the admin account if it doesn't exist.
 ## Uses credentials from podman-compose.yml (admin/admin123/admin@example.com)
 ## Also creates a default team and adds the admin user to it.
@@ -360,7 +359,7 @@ dev-restart: dev-down dev-up
 dev-clean:
 	@echo "Cleaning development environment (removing containers, volumes, and data)..."
 	$(PODMAN_COMPOSE) down -v
-	sudo rm -rf podman/data/* podman/config/*
+	build/scripts/dir-cleanup.sh podman/data/ podman/config/
 	@echo "Development environment cleaned. Run 'make dev-up' to start fresh."
 
 ## Views Mattermost server logs.

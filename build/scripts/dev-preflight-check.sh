@@ -101,9 +101,14 @@ permissions_set=0
 
 for dir in "${CHMOD_DIRS[@]}"; do
     if [[ -d "${dir}" ]]; then
-        # Check if we need to set permissions
-        # We'll try to set them regardless to ensure they're correct
-        if chmod -R 777 "${dir}" 2>/dev/null; then
+        # Check if we need to set permissions - We'll try to set them regardless
+        # to ensure they're correct.
+        #
+        # Permissions of 775 is used here instead of 755 as the matermost
+        # config file is being generated as UID/GID which is not the current users (despite
+        # podman configuraiton to do otherwise). Since this is dev/test infra (local machine)
+        # this seemed acceptable.
+        if sudo chmod -R 775 "${dir}" 2>/dev/null; then
             echo "  ✓ Permissions set: ${dir}"
             permissions_set=$((permissions_set + 1))
         else
