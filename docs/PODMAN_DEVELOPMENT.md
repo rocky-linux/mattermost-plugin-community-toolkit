@@ -224,7 +224,7 @@ make dev-enable
 The setup process automatically creates the required directories with proper permissions via the `dev-setup` target. However, if you encounter permission issues with the config or data directories, you can manually fix them:
 
 ```bash
-chmod -R 755 podman/config podman/data/mattermost
+chmod -R 775 podman/config podman/data/mattermost
 ```
 
 ### Debugging Workflow
